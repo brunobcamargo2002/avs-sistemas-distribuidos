@@ -8,6 +8,7 @@ public class Promotion
     public decimal OriginalPrice { get; set; }
     public int DiscountPercentage { get; set; }
     public decimal PromotionalPrice { get; set; }
+    public int Stock { get; set; }
     public DateTimeOffset GeneratedAt { get; set; }
 
     public string RoutingKey => $"promocao.categoria.{Category}";

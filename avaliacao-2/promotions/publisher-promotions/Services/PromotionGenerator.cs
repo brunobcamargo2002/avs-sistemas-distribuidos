@@ -7,19 +7,19 @@ public static class PromotionGenerator
 {
     public static Promotion GenerateRandom()
     {
-        var (category, name) = ProductCatalog.Products[Random.Shared.Next(ProductCatalog.Products.Length)];
+        var product = ProductCatalog.Products[Random.Shared.Next(ProductCatalog.Products.Count)];
         var discountPercentage = Random.Shared.Next(5, 71);
-        var originalPrice = Math.Round(Random.Shared.Next(5000, 1200001) / 100m, 2);
-        var promotionalPrice = Math.Round(originalPrice * (1 - discountPercentage / 100m), 2);
+        var promotionalPrice = Math.Round(product.Price * (1 - discountPercentage / 100m), 2);
 
         return new Promotion
         {
             Id = Guid.NewGuid(),
-            Category = category,
-            ProductName = name,
-            OriginalPrice = originalPrice,
+            Category = product.Category,
+            ProductName = product.Name,
+            OriginalPrice = product.Price,
             DiscountPercentage = discountPercentage,
             PromotionalPrice = promotionalPrice,
+            Stock = product.Stock,
             GeneratedAt = DateTimeOffset.UtcNow
         };
     }
