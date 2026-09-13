@@ -1,0 +1,33 @@
+# Build output
+bin/
+obj/
+
+# Visual Studio / Rider / VS Code
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# NuGet
+*.nupkg
+packages/
+
+# Testes
+TestResults/
+*.trx
+
+# Logs
+*.log
+
+# Variáveis de ambiente / segredos
+.env
+.env.*
+*.pfx
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Chaves privadas (nunca versionar)
+**/private_key.pem
