@@ -1,0 +1,16 @@
+[
+  {
+    "orderNumber": 1,
+    "orderId": "af7a999b-59ee-41b0-81a9-55543f235f6f",
+    "customerId": "1",
+    "items": [
+      {
+        "productId": 19,
+        "name": "Notebook Gamer i7 RTX 4050",
+        "quantity": 1
+      }
+    ],
+    "status": "Confirmado",
+    "createdAt": "2026-09-13T07:18:56.6154791+00:00"
+  }
+]

@@ -1,28 +1,184 @@
 [
-  { "category": "hardware.placa_de_video", "name": "Placa de Vídeo RTX 4060", "price": 2499.90, "stock": 3 },
-  { "category": "hardware.placa_de_video", "name": "Placa de Vídeo RX 7600", "price": 2199.90, "stock": 0 },
-  { "category": "hardware.processador", "name": "Processador Intel Core i5-13400", "price": 1399.00, "stock": 5 },
-  { "category": "hardware.processador", "name": "Processador AMD Ryzen 5 7600", "price": 1499.00, "stock": 0 },
-  { "category": "hardware.placa_mae", "name": "Placa Mãe B450M Gaming", "price": 549.90, "stock": 4 },
-  { "category": "hardware.placa_mae", "name": "Placa Mãe Z790 AORUS", "price": 1899.00, "stock": 1 },
-  { "category": "hardware.memoria_ram", "name": "Memória RAM 16GB DDR4 3200MHz", "price": 289.90, "stock": 6 },
-  { "category": "hardware.memoria_ram", "name": "Memória RAM 32GB DDR5 6000MHz", "price": 799.90, "stock": 0 },
-  { "category": "hardware.armazenamento", "name": "SSD NVMe 1TB", "price": 449.90, "stock": 2 },
-  { "category": "hardware.armazenamento", "name": "HD 2TB SATA", "price": 399.90, "stock": 5 },
-  { "category": "hardware.fonte", "name": "Fonte 650W 80 Plus Bronze", "price": 379.90, "stock": 0 },
-  { "category": "hardware.gabinete", "name": "Gabinete Gamer ATX RGB", "price": 349.90, "stock": 2 },
-  { "category": "hardware.cooler", "name": "Water Cooler 240mm RGB", "price": 499.90, "stock": 1 },
-  { "category": "perifericos.teclado", "name": "Teclado Mecânico RGB", "price": 289.90, "stock": 4 },
-  { "category": "perifericos.mouse", "name": "Mouse Gamer 16000 DPI", "price": 159.90, "stock": 0 },
-  { "category": "perifericos.monitor", "name": "Monitor 27\" 144Hz IPS", "price": 1299.00, "stock": 3 },
-  { "category": "perifericos.headset", "name": "Headset Gamer 7.1", "price": 249.90, "stock": 0 },
-  { "category": "perifericos.webcam", "name": "Webcam Full HD 1080p", "price": 179.90, "stock": 2 },
-  { "category": "notebooks", "name": "Notebook Gamer i7 RTX 4050", "price": 6999.00, "stock": 1 },
-  { "category": "notebooks", "name": "Notebook Ultrafino i5", "price": 3999.00, "stock": 0 },
-  { "category": "redes.roteador", "name": "Roteador Wi-Fi 6 AX3000", "price": 449.90, "stock": 3 },
-  { "category": "redes.switch", "name": "Switch Gerenciável 8 Portas", "price": 599.90, "stock": 0 },
-  { "category": "software.antivirus", "name": "Licença Antivírus Anual", "price": 149.90, "stock": 5 },
-  { "category": "software.sistema_operacional", "name": "Licença Windows 11 Pro", "price": 599.00, "stock": 0 },
-  { "category": "acessorios.cadeira_gamer", "name": "Cadeira Gamer Ergonômica", "price": 1199.00, "stock": 2 },
-  { "category": "acessorios.mousepad", "name": "Mousepad Gamer XL", "price": 79.90, "stock": 4 }
+  {
+    "id": 1,
+    "category": "hardware.placa_de_video",
+    "name": "Placa de Vídeo RTX 4060",
+    "price": 2499.90,
+    "stock": 3
+  },
+  {
+    "id": 2,
+    "category": "hardware.placa_de_video",
+    "name": "Placa de Vídeo RX 7600",
+    "price": 2199.90,
+    "stock": 0
+  },
+  {
+    "id": 3,
+    "category": "hardware.processador",
+    "name": "Processador Intel Core i5-13400",
+    "price": 1399.00,
+    "stock": 5
+  },
+  {
+    "id": 4,
+    "category": "hardware.processador",
+    "name": "Processador AMD Ryzen 5 7600",
+    "price": 1499.00,
+    "stock": 0
+  },
+  {
+    "id": 5,
+    "category": "hardware.placa_mae",
+    "name": "Placa Mãe B450M Gaming",
+    "price": 549.90,
+    "stock": 4
+  },
+  {
+    "id": 6,
+    "category": "hardware.placa_mae",
+    "name": "Placa Mãe Z790 AORUS",
+    "price": 1899.00,
+    "stock": 1
+  },
+  {
+    "id": 7,
+    "category": "hardware.memoria_ram",
+    "name": "Memória RAM 16GB DDR4 3200MHz",
+    "price": 289.90,
+    "stock": 6
+  },
+  {
+    "id": 8,
+    "category": "hardware.memoria_ram",
+    "name": "Memória RAM 32GB DDR5 6000MHz",
+    "price": 799.90,
+    "stock": 0
+  },
+  {
+    "id": 9,
+    "category": "hardware.armazenamento",
+    "name": "SSD NVMe 1TB",
+    "price": 449.90,
+    "stock": 2
+  },
+  {
+    "id": 10,
+    "category": "hardware.armazenamento",
+    "name": "HD 2TB SATA",
+    "price": 399.90,
+    "stock": 5
+  },
+  {
+    "id": 11,
+    "category": "hardware.fonte",
+    "name": "Fonte 650W 80 Plus Bronze",
+    "price": 379.90,
+    "stock": 0
+  },
+  {
+    "id": 12,
+    "category": "hardware.gabinete",
+    "name": "Gabinete Gamer ATX RGB",
+    "price": 349.90,
+    "stock": 2
+  },
+  {
+    "id": 13,
+    "category": "hardware.cooler",
+    "name": "Water Cooler 240mm RGB",
+    "price": 499.90,
+    "stock": 1
+  },
+  {
+    "id": 14,
+    "category": "perifericos.teclado",
+    "name": "Teclado Mecânico RGB",
+    "price": 289.90,
+    "stock": 4
+  },
+  {
+    "id": 15,
+    "category": "perifericos.mouse",
+    "name": "Mouse Gamer 16000 DPI",
+    "price": 159.90,
+    "stock": 0
+  },
+  {
+    "id": 16,
+    "category": "perifericos.monitor",
+    "name": "Monitor 27\" 144Hz IPS",
+    "price": 1299.00,
+    "stock": 3
+  },
+  {
+    "id": 17,
+    "category": "perifericos.headset",
+    "name": "Headset Gamer 7.1",
+    "price": 249.90,
+    "stock": 0
+  },
+  {
+    "id": 18,
+    "category": "perifericos.webcam",
+    "name": "Webcam Full HD 1080p",
+    "price": 179.90,
+    "stock": 2
+  },
+  {
+    "id": 19,
+    "category": "notebooks",
+    "name": "Notebook Gamer i7 RTX 4050",
+    "price": 6999.00,
+    "stock": 0
+  },
+  {
+    "id": 20,
+    "category": "notebooks",
+    "name": "Notebook Ultrafino i5",
+    "price": 3999.00,
+    "stock": 0
+  },
+  {
+    "id": 21,
+    "category": "redes.roteador",
+    "name": "Roteador Wi-Fi 6 AX3000",
+    "price": 449.90,
+    "stock": 3
+  },
+  {
+    "id": 22,
+    "category": "redes.switch",
+    "name": "Switch Gerenciável 8 Portas",
+    "price": 599.90,
+    "stock": 0
+  },
+  {
+    "id": 23,
+    "category": "software.antivirus",
+    "name": "Licença Antivírus Anual",
+    "price": 149.90,
+    "stock": 5
+  },
+  {
+    "id": 24,
+    "category": "software.sistema_operacional",
+    "name": "Licença Windows 11 Pro",
+    "price": 599.00,
+    "stock": 0
+  },
+  {
+    "id": 25,
+    "category": "acessorios.cadeira_gamer",
+    "name": "Cadeira Gamer Ergonômica",
+    "price": 1199.00,
+    "stock": 2
+  },
+  {
+    "id": 26,
+    "category": "acessorios.mousepad",
+    "name": "Mousepad Gamer XL",
+    "price": 79.90,
+    "stock": 4
+  }
 ]
