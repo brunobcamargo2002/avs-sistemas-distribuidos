@@ -40,6 +40,11 @@ public static class OrderRepository
         WriteOrders(orders);
     }
 
+    public static Order? Find(Guid orderId)
+    {
+        return ReadOrders().Find(o => o.OrderId == orderId);
+    }
+
     public static void UpdateStatus(Guid orderId, string status)
     {
         var orders = ReadOrders();

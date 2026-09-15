@@ -44,6 +44,12 @@ public static class ProductCatalog
         return unavailable;
     }
 
+    public static decimal CalculateTotal(IEnumerable<OrderItem> items)
+    {
+        var products = ReadProducts();
+        return items.Sum(item => (Find(products, item.ProductId)?.Price ?? 0) * item.Quantity);
+    }
+
     public static void Reserve(IEnumerable<OrderItem> items)
     {
         var products = ReadProducts();

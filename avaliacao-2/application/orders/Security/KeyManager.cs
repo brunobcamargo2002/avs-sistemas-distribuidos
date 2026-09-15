@@ -11,6 +11,8 @@ public static class KeyManager
 {
     private const string PrivateKeyPath = "Keys/private_key.pem";
     private const string StockPublicKeyPath = "Keys/stock_public_key.pem";
+    private const string PaymentPublicKeyPath = "Keys/payment_public_key.pem";
+    private const string DeliveryPublicKeyPath = "Keys/delivery_public_key.pem";
 
     public static RSA LoadPrivateKey() => LoadFromPem(
         PrivateKeyPath,
@@ -19,6 +21,14 @@ public static class KeyManager
     public static RSA LoadStockPublicKey() => LoadFromPem(
         StockPublicKeyPath,
         "Chave pública do stock não encontrada em '{0}'. Copie a chave pública do stock antes de iniciar o orders.");
+
+    public static RSA LoadPaymentPublicKey() => LoadFromPem(
+        PaymentPublicKeyPath,
+        "Chave pública do payment não encontrada em '{0}'. Copie a chave pública do payment antes de iniciar o orders.");
+
+    public static RSA LoadDeliveryPublicKey() => LoadFromPem(
+        DeliveryPublicKeyPath,
+        "Chave pública do delivery não encontrada em '{0}'. Copie a chave pública do delivery antes de iniciar o orders.");
 
     private static RSA LoadFromPem(string path, string errorMessageFormat)
     {

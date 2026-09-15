@@ -16,18 +16,25 @@ public class OrderService
     private const string OrderDeletedRoutingKey = "pedido.excluido";
     private const string StockOkRoutingKey = "pedido.estoque_ok";
     private const string StockUnavailableRoutingKey = "pedido.indisponivel";
+    private const string PaymentApprovedRoutingKey = "pagamento.aprovado";
+    private const string PaymentRejectedRoutingKey = "pagamento.recusado";
+    private const string OrderShippedRoutingKey = "pedido.enviado";
 
     private static readonly JsonSerializerOptions ReadOptions = new() { PropertyNameCaseInsensitive = true };
 
     private readonly IChannel _channel;
     private readonly RSA _signingKey;
     private readonly RSA _stockPublicKey;
+    private readonly RSA _paymentPublicKey;
+    private readonly RSA _deliveryPublicKey;
 
-    private OrderService(IChannel channel, RSA signingKey, RSA stockPublicKey)
+    private OrderService(IChannel channel, RSA signingKey, RSA stockPublicKey, RSA paymentPublicKey, RSA deliveryPublicKey)
     {
         _channel = channel;
         _signingKey = signingKey;
         _stockPublicKey = stockPublicKey;
+        _paymentPublicKey = paymentPublicKey;
+        _deliveryPublicKey = deliveryPublicKey;
     }
 
     public static async Task<OrderService> CreateAsync(ConnectionFactory factory)
@@ -46,11 +53,16 @@ public class OrderService
 
         await channel.QueueBindAsync(queue: QueueName, exchange: ExchangeName, routingKey: StockOkRoutingKey);
         await channel.QueueBindAsync(queue: QueueName, exchange: ExchangeName, routingKey: StockUnavailableRoutingKey);
+        await channel.QueueBindAsync(queue: QueueName, exchange: ExchangeName, routingKey: PaymentApprovedRoutingKey);
+        await channel.QueueBindAsync(queue: QueueName, exchange: ExchangeName, routingKey: PaymentRejectedRoutingKey);
+        await channel.QueueBindAsync(queue: QueueName, exchange: ExchangeName, routingKey: OrderShippedRoutingKey);
 
         var signingKey = KeyManager.LoadPrivateKey();
         var stockPublicKey = KeyManager.LoadStockPublicKey();
+        var paymentPublicKey = KeyManager.LoadPaymentPublicKey();
+        var deliveryPublicKey = KeyManager.LoadDeliveryPublicKey();
 
-        return new OrderService(channel, signingKey, stockPublicKey);
+        return new OrderService(channel, signingKey, stockPublicKey, paymentPublicKey, deliveryPublicKey);
     }
 
     public async Task StartConsumingAsync()
@@ -103,6 +115,15 @@ public class OrderService
             case StockUnavailableRoutingKey:
                 HandleStockUnavailable(body);
                 break;
+            case PaymentApprovedRoutingKey:
+                HandlePaymentApproved(body);
+                break;
+            case PaymentRejectedRoutingKey:
+                await HandlePaymentRejectedAsync(body);
+                break;
+            case OrderShippedRoutingKey:
+                HandleOrderShipped(body);
+                break;
         }
 
         await _channel.BasicAckAsync(deliveryTag: ea.DeliveryTag, multiple: false);
@@ -116,8 +137,7 @@ public class OrderService
             return;
         }
 
-        // TODO: no futuro será realizado o devido processamento (ex.: prosseguir com pagamento/entrega).
-        OrderRepository.UpdateStatus(stockOk.OrderId, "Confirmado");
+        OrderRepository.UpdateStatus(stockOk.OrderId, "Estoque confirmado");
         Console.WriteLine($" [x] Pedido {stockOk.OrderId} -> estoque confirmado.");
     }
 
@@ -131,6 +151,47 @@ public class OrderService
 
         OrderRepository.Remove(stockUnavailable.OrderId);
         Console.WriteLine($" [x] Pedido {stockUnavailable.OrderId} -> indisponível, pedido excluído.");
+    }
+
+    private void HandlePaymentApproved(byte[] body)
+    {
+        var payment = JsonSerializer.Deserialize<PaymentApprovedEvent>(body, ReadOptions);
+        if (payment is null)
+        {
+            return;
+        }
+
+        OrderRepository.UpdateStatus(payment.OrderId, "Pagamento aprovado");
+        Console.WriteLine($" [x] Pedido {payment.OrderId} -> pagamento aprovado.");
+    }
+
+    private async Task HandlePaymentRejectedAsync(byte[] body)
+    {
+        var payment = JsonSerializer.Deserialize<PaymentRejectedEvent>(body, ReadOptions);
+        if (payment is null)
+        {
+            return;
+        }
+
+        var order = OrderRepository.Find(payment.OrderId);
+        if (order is not null)
+        {
+            await DeleteOrderAsync(order);
+        }
+
+        Console.WriteLine($" [x] Pedido {payment.OrderId} -> pagamento recusado, pedido excluído.");
+    }
+
+    private void HandleOrderShipped(byte[] body)
+    {
+        var shipment = JsonSerializer.Deserialize<OrderShippedEvent>(body, ReadOptions);
+        if (shipment is null)
+        {
+            return;
+        }
+
+        OrderRepository.UpdateStatus(shipment.OrderId, "Enviado");
+        Console.WriteLine($" [x] Pedido {shipment.OrderId} -> enviado ({shipment.TrackingCode}).");
     }
 
     private async Task PublishSignedAsync<T>(string routingKey, T payload)
@@ -163,6 +224,12 @@ public class OrderService
             return false;
         }
 
-        return _stockPublicKey.VerifyData(body, signatureBytes, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        return ea.RoutingKey switch
+        {
+            StockOkRoutingKey or StockUnavailableRoutingKey => _stockPublicKey.VerifyData(body, signatureBytes, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1),
+            PaymentApprovedRoutingKey or PaymentRejectedRoutingKey => _paymentPublicKey.VerifyData(body, signatureBytes, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1),
+            OrderShippedRoutingKey => _deliveryPublicKey.VerifyData(body, signatureBytes, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1),
+            _ => false
+        };
     }
 }

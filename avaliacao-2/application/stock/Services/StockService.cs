@@ -103,6 +103,8 @@ public class StockService
             await PublishSignedAsync(StockOkRoutingKey, new StockOkEvent
             {
                 OrderId = order.OrderId,
+                Items = order.Items,
+                Total = ProductCatalog.CalculateTotal(order.Items),
                 ProcessedAt = DateTimeOffset.UtcNow
             });
 
