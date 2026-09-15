@@ -17,14 +17,14 @@ public class PaymentService
     private static readonly JsonSerializerOptions ReadOptions = new() { PropertyNameCaseInsensitive = true };
     private readonly IChannel channel;
     private readonly RSA signingKey;
-    private readonly RSA ordersPublicKey;
+    private readonly RSA stockPublicKey;
     private readonly HashSet<Guid> processedOrders = [];
 
-    private PaymentService(IChannel channel, RSA signingKey, RSA ordersPublicKey)
+    private PaymentService(IChannel channel, RSA signingKey, RSA stockPublicKey)
     {
         this.channel = channel;
         this.signingKey = signingKey;
-        this.ordersPublicKey = ordersPublicKey;
+        this.stockPublicKey = stockPublicKey;
     }
 
     public static async Task<PaymentService> CreateAsync(ConnectionFactory factory)
@@ -34,7 +34,7 @@ public class PaymentService
         await channel.QueueDeclareAsync(QueueName, true, false, false,
             new Dictionary<string, object?> { ["x-queue-type"] = "quorum" });
         await channel.QueueBindAsync(QueueName, ExchangeName, StockOkRoutingKey);
-        return new PaymentService(channel, KeyManager.LoadPrivateKey(), KeyManager.LoadOrdersPublicKey());
+        return new PaymentService(channel, KeyManager.LoadPrivateKey(), KeyManager.LoadStockPublicKey());
     }
 
     public async Task StartConsumingAsync()
@@ -102,6 +102,6 @@ public class PaymentService
             return false;
         }
 
-        return ordersPublicKey.VerifyData(body, signature, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        return stockPublicKey.VerifyData(body, signature, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
     }
 }
