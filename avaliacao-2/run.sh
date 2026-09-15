@@ -51,7 +51,8 @@ setup_keys() {
     done
 
     cp "$APP_DIR/orders/Keys/public_key.pem" "$APP_DIR/stock/Keys/orders_public_key.pem"
-    cp "$APP_DIR/orders/Keys/public_key.pem" "$APP_DIR/payment/Keys/orders_public_key.pem"
+    cp "$APP_DIR/stock/Keys/public_key.pem" "$APP_DIR/payment/Keys/stock_public_key.pem"
+    rm -f "$APP_DIR/payment/Keys/orders_public_key.pem"
     cp "$APP_DIR/stock/Keys/public_key.pem" "$APP_DIR/orders/Keys/stock_public_key.pem"
     cp "$APP_DIR/payment/Keys/public_key.pem" "$APP_DIR/orders/Keys/payment_public_key.pem"
     cp "$APP_DIR/delivery/Keys/public_key.pem" "$APP_DIR/orders/Keys/delivery_public_key.pem"
@@ -91,7 +92,7 @@ setup_rabbitmq() {
     echo "Aguardando RabbitMQ iniciar..."
     local attempt
     for attempt in {1..30}; do
-        if docker exec "$RABBITMQ_CONTAINER" rabbitmq-diagnostics -q ping >/dev/null 2>&1; then
+        if docker exec "$RABBITMQ_CONTAINER" rabbitmq-diagnostics -q check_running >/dev/null 2>&1; then
             break
         fi
         if [[ "$attempt" -eq 30 ]]; then

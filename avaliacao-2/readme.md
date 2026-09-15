@@ -24,7 +24,7 @@ Copie as chaves públicas conforme os consumidores:
 
 - `orders/Keys/stock_public_key.pem`, `payment_public_key.pem` e `delivery_public_key.pem`;
 - `stock/Keys/orders_public_key.pem`;
-- `payment/Keys/orders_public_key.pem`;
+- `payment/Keys/stock_public_key.pem`;
 - `delivery/Keys/payment_public_key.pem`.
 
 ## Execução

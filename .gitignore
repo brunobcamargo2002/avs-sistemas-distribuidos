@@ -28,6 +28,3 @@ TestResults/
 # OS files
 .DS_Store
 Thumbs.db
-
-# Chaves privadas (nunca versionar)
-**/private_key.pem
