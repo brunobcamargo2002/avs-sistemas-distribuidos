@@ -2,8 +2,8 @@
 set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_DIR="$ROOT_DIR/avaliacao-2/application"
-PROMOTIONS_DIR="$ROOT_DIR/avaliacao-2/promotions"
+APP_DIR="$ROOT_DIR/application"
+PROMOTIONS_DIR="$ROOT_DIR/promotions"
 RABBITMQ_CONTAINER="${RABBITMQ_CONTAINER:-rabbitmq}"
 RABBITMQ_IMAGE="${RABBITMQ_IMAGE:-rabbitmq:3-management}"
 RABBITMQ_VOLUME="${RABBITMQ_VOLUME:-${RABBITMQ_CONTAINER}_data}"
