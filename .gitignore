@@ -23,7 +23,9 @@ TestResults/
 # Variáveis de ambiente / segredos
 .env
 .env.*
-*.pfx
+
+# Chaves e certificados
+*.pem
 
 # OS files
 .DS_Store
