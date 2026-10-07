@@ -20,6 +20,8 @@ public static class ProductCatalog
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
+    public static List<CatalogProduct> ListProducts() => ReadProducts();
+
     public static List<UnavailableItem> GetUnavailableItems(IEnumerable<OrderItem> items)
     {
         var products = ReadProducts();

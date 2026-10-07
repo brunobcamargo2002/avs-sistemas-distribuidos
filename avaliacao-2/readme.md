@@ -4,8 +4,8 @@
 
 Na pasta `avaliacao-2/application` estão os serviços independentes:
 
-- `orders`: interface de terminal e estado dos pedidos;
-- `stock`: reserva e devolução no `product-catalog.json`;
+- `orders`: API REST da loja, publicação de pedidos e estado dos pedidos;
+- `stock`: API REST do catálogo, reserva e devolução no `product-catalog.json`;
 - `payment`: simula aprovação ou recusa de pagamentos;
 - `delivery`: emite nota, código de rastreio e o evento de envio.
 
@@ -37,6 +37,15 @@ A forma recomendada é usar o script da raiz do projeto. Ele configura as chaves
 cd /home/rj/Documents/SistemasDistribuidos/avs-sistemas-distribuidos
 ./run.sh
 ```
+
+Com os serviços iniciados, acesse a interface web em <http://localhost:5080>. Ela permite consultar e filtrar o catálogo, montar o carrinho, criar pedidos e acompanhar seus status. O identificador do cliente é usado para separar a consulta dos pedidos.
+
+Endpoints REST usados pela interface:
+
+- `GET http://localhost:5080/api/products`: catálogo consultado pelo serviço de pedidos no serviço de estoque;
+- `GET http://localhost:5080/api/orders?customerId=cliente-demo`: pedidos do cliente;
+- `POST http://localhost:5080/api/orders`: cria e publica um pedido;
+- `GET http://localhost:5081/api/products`: catálogo exposto pelo serviço de estoque.
 
 Também é possível executar etapas individualmente:
 

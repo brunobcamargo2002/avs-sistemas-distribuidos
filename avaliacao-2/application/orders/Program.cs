@@ -1,7 +1,13 @@
+using System.Net.Http.Json;
+using System.Text.Json;
 using orders.Data;
 using orders.Models;
 using orders.Services;
 using RabbitMQ.Client;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.WebHost.UseUrls(Environment.GetEnvironmentVariable("GATEWAY_URLS") ?? "http://localhost:5080");
+builder.Services.AddHttpClient();
 
 var factory = new ConnectionFactory
 {
@@ -13,150 +19,84 @@ var factory = new ConnectionFactory
 var orderService = await OrderService.CreateAsync(factory);
 await orderService.StartConsumingAsync();
 
-Console.Write("Digite seu identificador de cliente: ");
-var customerId = Console.ReadLine()?.Trim();
-while (string.IsNullOrWhiteSpace(customerId))
-{
-    Console.Write("Identificador inválido. Digite seu identificador de cliente: ");
-    customerId = Console.ReadLine()?.Trim();
-}
+var app = builder.Build();
+var stockServiceUrl = Environment.GetEnvironmentVariable("STOCK_SERVICE_URL") ?? "http://localhost:5081";
+var interfacePath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "..", "interface"));
+var interfaceProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(interfacePath);
 
-while (true)
-{
-    Console.WriteLine();
-    Console.WriteLine("=== Menu ===");
-    Console.WriteLine("1 - Ver produtos disponíveis");
-    Console.WriteLine("2 - Fazer pedido");
-    Console.WriteLine("3 - Excluir pedido");
-    Console.WriteLine("4 - Consultar meus pedidos");
-    Console.WriteLine("5 - Sair");
-    Console.Write("> ");
+app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = interfaceProvider });
+app.UseStaticFiles(new StaticFileOptions { FileProvider = interfaceProvider });
 
-    switch (Console.ReadLine()?.Trim())
+app.MapGet("/api/products", async (IHttpClientFactory clients) =>
+{
+    try
     {
-        case "1":
-            ShowProducts();
-            break;
-        case "2":
-            await CreateOrderAsync();
-            break;
-        case "3":
-            await DeleteOrderAsync();
-            break;
-        case "4":
-            ShowOrders(OrderRepository.ListByCustomer(customerId));
-            break;
-        case "5":
-            return;
-        default:
-            Console.WriteLine("Opção inválida.");
-            break;
+        var products = await clients.CreateClient().GetFromJsonAsync<List<CatalogProduct>>($"{stockServiceUrl}/api/products");
+        return Results.Ok(products ?? []);
     }
-}
-
-void ShowProducts()
-{
-    Console.WriteLine();
-    foreach (var product in ProductCatalog.List())
+    catch (HttpRequestException)
     {
-        Console.WriteLine($"{product.Id} - [{product.Category}] {product.Name} - R$ {product.Price} (estoque: {product.Stock})");
+        return Results.Problem("O serviço de estoque não está disponível.", statusCode: StatusCodes.Status503ServiceUnavailable);
     }
-}
+});
 
-async Task CreateOrderAsync()
+app.MapGet("/api/orders", (string customerId) =>
 {
-    var products = ProductCatalog.List();
+    if (string.IsNullOrWhiteSpace(customerId))
+    {
+        return Results.BadRequest(new { message = "Informe o identificador do cliente." });
+    }
+
+    return Results.Ok(OrderRepository.ListByCustomer(customerId));
+});
+
+app.MapPost("/api/orders", async (CreateOrderRequest request, IHttpClientFactory clients) =>
+{
+    if (string.IsNullOrWhiteSpace(request.CustomerId) || request.Items.Count == 0 || request.Items.Any(item => item.Quantity <= 0))
+    {
+        return Results.BadRequest(new { message = "Informe o cliente e ao menos um item com quantidade válida." });
+    }
+
+    List<CatalogProduct> products;
+    try
+    {
+        products = await clients.CreateClient().GetFromJsonAsync<List<CatalogProduct>>($"{stockServiceUrl}/api/products") ?? [];
+    }
+    catch (HttpRequestException)
+    {
+        return Results.Problem("O serviço de estoque não está disponível.", statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+
     var items = new List<OrderItem>();
-
-    ShowProducts();
-
-    while (true)
+    foreach (var item in request.Items.GroupBy(item => item.ProductId).Select(group => new { ProductId = group.Key, Quantity = group.Sum(item => item.Quantity) }))
     {
-        Console.Write("Id do produto (branco para finalizar o pedido): ");
-        var input = Console.ReadLine()?.Trim();
-        if (string.IsNullOrWhiteSpace(input))
-        {
-            break;
-        }
-
-        if (!int.TryParse(input, out var productId))
-        {
-            Console.WriteLine("Id inválido.");
-            continue;
-        }
-
-        var product = products.Find(p => p.Id == productId);
+        var product = products.Find(candidate => candidate.Id == item.ProductId);
         if (product is null)
         {
-            Console.WriteLine("Produto não encontrado no catálogo.");
-            continue;
+            return Results.BadRequest(new { message = $"Produto {item.ProductId} não encontrado." });
         }
 
-        Console.Write("Quantidade: ");
-        if (!int.TryParse(Console.ReadLine(), out var quantity) || quantity <= 0)
+        if (product.Stock < item.Quantity)
         {
-            Console.WriteLine("Quantidade inválida.");
-            continue;
+            return Results.Conflict(new { message = $"Estoque insuficiente para {product.Name}. Disponível: {product.Stock}." });
         }
 
-        items.Add(new OrderItem { ProductId = product.Id, Name = product.Name, Quantity = quantity });
-        Console.WriteLine($"Adicionado: {quantity}x {product.Name}");
+        items.Add(new OrderItem { ProductId = product.Id, Name = product.Name, Quantity = item.Quantity });
     }
 
-    if (items.Count == 0)
+    var order = await orderService.CreateOrderAsync(request.CustomerId.Trim(), items);
+    return Results.Created($"/api/orders?customerId={Uri.EscapeDataString(order.CustomerId)}", new
     {
-        Console.WriteLine("Pedido cancelado: nenhum item adicionado.");
-        return;
-    }
+        order.OrderNumber,
+        order.OrderId,
+        order.CustomerId,
+        order.Items,
+        order.Status,
+        order.CreatedAt
+    });
+});
 
-    var order = await orderService.CreateOrderAsync(customerId, items);
-    Console.WriteLine($"Pedido #{order.OrderNumber} criado e enviado para processamento.");
-}
+await app.RunAsync();
 
-async Task DeleteOrderAsync()
-{
-    var myOrders = OrderRepository.ListByCustomer(customerId);
-    if (myOrders.Count == 0)
-    {
-        Console.WriteLine("Você não possui pedidos.");
-        return;
-    }
-
-    ShowOrders(myOrders);
-    Console.Write("Digite o número do pedido a excluir: ");
-
-    if (!int.TryParse(Console.ReadLine(), out var orderNumber))
-    {
-        Console.WriteLine("Número inválido.");
-        return;
-    }
-
-    var order = myOrders.Find(o => o.OrderNumber == orderNumber);
-    if (order is null)
-    {
-        Console.WriteLine("Pedido não encontrado.");
-        return;
-    }
-
-    await orderService.DeleteOrderAsync(order);
-    Console.WriteLine($"Pedido #{order.OrderNumber} excluído.");
-}
-
-void ShowOrders(List<Order> orderList)
-{
-    if (orderList.Count == 0)
-    {
-        Console.WriteLine("Você não possui pedidos.");
-        return;
-    }
-
-    Console.WriteLine();
-    foreach (var order in orderList)
-    {
-        Console.WriteLine($"#{order.OrderNumber} - {order.Status} - {order.CreatedAt:g}");
-        foreach (var item in order.Items)
-        {
-            Console.WriteLine($"    {item.Quantity}x {item.Name} (id {item.ProductId})");
-        }
-    }
-}
+public sealed record CreateOrderRequest(string CustomerId, List<CreateOrderItemRequest> Items);
+public sealed record CreateOrderItemRequest(int ProductId, int Quantity);
