@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#173c32" />
+    <title>Estação | Tecnologia para montar do seu jeito</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css?v=3" />
+    <script src="app.js?v=3" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#inicio" aria-label="Estação, início">
+        <span class="brand-mark" aria-hidden="true">e.</span>
+        <span>estação<span class="brand-period">.</span></span>
+      </a>
+      <div class="topbar-right">
+        <span class="service-indicator"><span class="indicator-dot"></span>loja online</span>
+        <label class="customer-field" for="customer-id">
+          <span>Cliente</span>
+          <input id="customer-id" name="customerId" maxlength="80" autocomplete="nickname" value="cliente-demo" />
+        </label>
+        <a class="cart-jump" href="#carrinho" aria-label="Ir para o carrinho">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2.2 10.2a2 2 0 0 0 2 1.6h7.9a2 2 0 0 0 1.9-1.4L21 8H6M10 20h.01M18 20h.01" /></svg>
+          <span id="cart-count" class="cart-count">0</span>
+        </a>
+      </div>
+    </header>
+
+    <main id="inicio">
+      <section class="intro-band">
+        <div class="intro-copy">
+          <p class="eyebrow"><span class="eyebrow-line"></span> hardware, sem complicação</p>
+          <h1>Peças certas.<br /><span>Ideias em movimento.</span></h1>
+          <p class="intro-description">Explore o catálogo, monte seu pedido e acompanhe cada etapa por aqui.</p>
+          <a class="text-link" href="#catalogo">Explorar catálogo <span aria-hidden="true">↓</span></a>
+        </div>
+        <div class="intro-stamp" aria-hidden="true">
+          <span class="stamp-top">SEU PRÓXIMO</span>
+          <strong>UP<br />GRADE</strong>
+          <span class="stamp-bottom">COMEÇA AQUI / 01</span>
+          <span class="stamp-orbit"></span>
+        </div>
+        <div class="intro-index"><span>01</span><span class="index-rule"></span><span>CATÁLOGO</span></div>
+      </section>
+
+      <section class="shop-layout" id="catalogo">
+        <div class="catalog-column">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">ESCOLHA COM CALMA</p>
+              <h2>Catálogo <span id="product-total" class="heading-count">—</span></h2>
+            </div>
+            <label class="search-box" for="search-products">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 5 5" /></svg>
+              <input id="search-products" type="search" placeholder="Buscar produto" autocomplete="off" />
+            </label>
+          </div>
+          <div class="catalog-toolbar">
+            <div id="category-filters" class="category-filters" aria-label="Filtrar por categoria"></div>
+            <label class="availability-toggle"><input id="available-only" type="checkbox" /><span class="toggle-track"></span><span>Em estoque</span></label>
+          </div>
+          <p id="catalog-message" class="feedback" role="status" aria-live="polite">Carregando catálogo...</p>
+          <div id="product-grid" class="product-grid" aria-live="polite"></div>
+        </div>
+
+        <aside class="side-column">
+          <section class="cart-panel" id="carrinho" aria-labelledby="cart-title">
+            <div class="panel-heading">
+              <div><p class="eyebrow">SUA SELEÇÃO</p><h2 id="cart-title">Carrinho <span id="cart-heading-count">(0)</span></h2></div>
+              <span class="panel-number">A</span>
+            </div>
+            <div id="cart-items" class="cart-items"><p class="empty-state">Seu carrinho está vazio.<br />Adicione uma peça para começar.</p></div>
+            <div class="cart-summary">
+              <div><span>Subtotal</span><strong id="cart-subtotal">R$ 0,00</strong></div>
+              <p>Frete calculado após a confirmação do pedido.</p>
+              <button id="submit-order" class="primary-button" type="button" disabled>
+                <span>Finalizar pedido</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg>
+              </button>
+              <p id="order-feedback" class="order-feedback" role="status" aria-live="polite"></p>
+            </div>
+          </section>
+
+          <section class="orders-panel" aria-labelledby="orders-title">
+            <div class="panel-heading">
+              <div><p class="eyebrow">DA SUA CONTA</p><h2 id="orders-title">Seus pedidos</h2></div>
+              <button id="refresh-orders" class="icon-button" type="button" aria-label="Atualizar pedidos" title="Atualizar pedidos">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5" /><path d="M5.6 9a7 7 0 0 1 11.6-2L20 12M4 12l2.8 5a7 7 0 0 0 11.6-2" /></svg>
+              </button>
+            </div>
+            <div id="orders-list" class="orders-list"><p class="empty-state">Carregando pedidos...</p></div>
+            <p class="orders-note"><span class="live-dot"></span>Atualização automática a cada 5 segundos</p>
+          </section>
+        </aside>
+      </section>
+    </main>
+
+    <footer class="site-footer"><a class="brand brand-footer" href="#inicio"><span class="brand-mark" aria-hidden="true">e.</span><span>estação<span class="brand-period">.</span></span></a><span>CURITIBA · PR</span><span>TECNOLOGIA EM BOA COMPANHIA</span></footer>
+  </body>
+</html>
