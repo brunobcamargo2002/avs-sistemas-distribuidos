@@ -15,6 +15,6 @@ var stockService = await StockService.CreateAsync(factory);
 await stockService.StartConsumingAsync();
 
 var app = builder.Build();
-app.MapGet("/api/products", () => stock.Data.ProductCatalog.ListProducts());
+app.MapGet("/api/products", () => stock.Data.ProductCatalog.ListActiveProducts());
 
 await app.RunAsync();

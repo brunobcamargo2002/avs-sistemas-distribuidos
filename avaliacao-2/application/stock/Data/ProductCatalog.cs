@@ -19,8 +19,8 @@ public static class ProductCatalog
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
-
-    public static List<CatalogProduct> ListProducts() => ReadProducts();
+    
+    public static List<CatalogProduct> ListActiveProducts() => ReadProducts().FindAll(product => product.Stock > 0);
 
     public static List<UnavailableItem> GetUnavailableItems(IEnumerable<OrderItem> items)
     {
