@@ -1,4 +1,3 @@
-using System.Net.Http.Json;
 using orders.Data;
 using orders.Models;
 using orders.Services;
@@ -24,41 +23,21 @@ public static class OrderEndpoints
             return Results.Ok(OrderRepository.ListByCustomer(customerId));
         });
 
-        group.MapPost("/", async (CreateOrderRequest request, IHttpClientFactory clients) =>
+        // O pedido é apenas registrado e publicado em "pedido.criado": quem decide
+        // sobre disponibilidade é o ms-estoque, de forma assíncrona.
+        group.MapPost("/", async (CreateOrderRequest request) =>
         {
-            if (string.IsNullOrWhiteSpace(request.CustomerId) || request.Items.Count == 0 || request.Items.Any(item => item.Quantity <= 0))
+            if (string.IsNullOrWhiteSpace(request.CustomerId))
             {
-                return Results.BadRequest(new { message = "Informe o cliente e ao menos um item com quantidade válida." });
+                return Results.BadRequest(new { message = "Informe o identificador do cliente." });
             }
 
-            List<CatalogProduct> products;
-            try
-            {
-                products = await clients.CreateClient("stock").GetFromJsonAsync<List<CatalogProduct>>("/api/products") ?? [];
-            }
-            catch (HttpRequestException)
-            {
-                return Results.Problem("O serviço de estoque não está disponível.", statusCode: StatusCodes.Status503ServiceUnavailable);
-            }
-
-            var items = new List<OrderItem>();
-            foreach (var item in request.Items.GroupBy(item => item.ProductId).Select(group => new { ProductId = group.Key, Quantity = group.Sum(item => item.Quantity) }))
-            {
-                var product = products.Find(candidate => candidate.Id == item.ProductId);
-                if (product is null)
-                {
-                    return Results.BadRequest(new { message = $"Produto {item.ProductId} não encontrado." });
-                }
-
-                if (product.Stock < item.Quantity)
-                {
-                    return Results.Conflict(new { message = $"Estoque insuficiente para {product.Name}. Disponível: {product.Stock}." });
-                }
-
-                items.Add(new OrderItem { ProductId = product.Id, Name = product.Name, Quantity = item.Quantity });
-            }
+            var items = request.Items
+                .Select(item => new OrderItem { ProductId = item.ProductId, Name = item.Name, Quantity = item.Quantity })
+                .ToList();
 
             var order = await orderService.CreateOrderAsync(request.CustomerId.Trim(), items);
+
             return Results.Created($"/api/orders?customerId={Uri.EscapeDataString(order.CustomerId)}", new
             {
                 order.OrderNumber,
@@ -75,4 +54,4 @@ public static class OrderEndpoints
 }
 
 public sealed record CreateOrderRequest(string CustomerId, List<CreateOrderItemRequest> Items);
-public sealed record CreateOrderItemRequest(int ProductId, int Quantity);
+public sealed record CreateOrderItemRequest(int ProductId, string Name, int Quantity);

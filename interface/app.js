@@ -233,7 +233,11 @@ elements.submitOrder.addEventListener("click", async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         customerId,
-        items: [...state.cart.entries()].map(([productId, quantity]) => ({ productId, quantity })),
+        items: [...state.cart.entries()].map(([productId, quantity]) => ({
+          productId,
+          quantity,
+          name: state.products.find((candidate) => candidate.id === productId)?.name ?? "",
+        })),
       }),
     });
     const result = await response.json();
