@@ -38,7 +38,15 @@ cd /home/rj/Documents/SistemasDistribuidos/avs-sistemas-distribuidos
 ./run.sh
 ```
 
-Com os serviços iniciados, acesse a interface web em <http://localhost:5080>. Ela permite consultar e filtrar o catálogo, montar o carrinho, criar pedidos e acompanhar seus status. O identificador do cliente é usado para separar a consulta dos pedidos.
+A interface web roda em processo próprio, fora do `run.sh`. Com os serviços iniciados, suba o front e acesse <http://localhost:5173>:
+
+```bash
+cd ../interface
+npm install   # só na primeira vez
+npm run dev
+```
+
+Ela permite consultar e filtrar o catálogo, montar o carrinho, criar pedidos e acompanhar seus status. O identificador do cliente é usado para separar a consulta dos pedidos. Instruções completas em [`interface/README.md`](../interface/README.md).
 
 Endpoints REST usados pela interface:
 

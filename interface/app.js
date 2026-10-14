@@ -1,3 +1,7 @@
+// URL da API do ms-principal. O front roda em servidor próprio, então a
+// chamada é cross-origin — ajuste com VITE_API_URL se a porta mudar.
+const API_BASE = import.meta.env?.VITE_API_URL ?? "http://localhost:5080";
+
 const state = {
   products: [],
   cart: new Map(),
@@ -130,7 +134,7 @@ function renderOrders(orders) {
 async function loadProducts() {
   elements.catalogMessage.textContent = "";
   try {
-    const response = await fetch("/api/products");
+    const response = await fetch(`${API_BASE}/api/products`);
     if (!response.ok) throw new Error("Não foi possível consultar o estoque.");
     state.products = await response.json();
     renderFilters();
@@ -151,7 +155,7 @@ async function loadOrders() {
   }
 
   try {
-    const response = await fetch(`/api/orders?customerId=${encodeURIComponent(customerId)}`);
+    const response = await fetch(`${API_BASE}/api/orders?customerId=${encodeURIComponent(customerId)}`);
     if (!response.ok) throw new Error("Falha ao consultar pedidos.");
     renderOrders(await response.json());
   } catch {
@@ -224,7 +228,7 @@ elements.submitOrder.addEventListener("click", async () => {
   elements.orderFeedback.classList.remove("error");
   elements.orderFeedback.textContent = "Enviando pedido...";
   try {
-    const response = await fetch("/api/orders", {
+    const response = await fetch(`${API_BASE}/api/orders`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

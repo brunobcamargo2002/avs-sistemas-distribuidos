@@ -7,6 +7,12 @@ builder.WebHost.UseUrls(Environment.GetEnvironmentVariable("GATEWAY_URLS") ?? "h
 builder.Services.AddHttpClient("stock", client =>
     client.BaseAddress = new Uri(Environment.GetEnvironmentVariable("STOCK_SERVICE_URL") ?? "http://localhost:5081"));
 
+// O front tem servidor próprio, então toda chamada do navegador é cross-origin.
+builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
+    .WithOrigins((Environment.GetEnvironmentVariable("FRONTEND_ORIGIN") ?? "http://localhost:5173").Split(';'))
+    .AllowAnyHeader()
+    .AllowAnyMethod()));
+
 var factory = new ConnectionFactory
 {
     HostName = "localhost",
@@ -18,11 +24,8 @@ var orderService = await OrderService.CreateAsync(factory);
 await orderService.StartConsumingAsync();
 
 var app = builder.Build();
-var interfacePath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "..", "interface"));
-var interfaceProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(interfacePath);
 
-app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = interfaceProvider });
-app.UseStaticFiles(new StaticFileOptions { FileProvider = interfaceProvider });
+app.UseCors();
 
 app.MapProductEndpoints();
 app.MapOrderEndpoints(orderService);
