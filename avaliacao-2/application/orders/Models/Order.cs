@@ -11,5 +11,6 @@ public class Order
     public string CustomerId { get; set; } = string.Empty;
     public List<OrderItem> Items { get; set; } = [];
     public string Status { get; set; } = "Criado";
+    public string? PaymentUrl { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }

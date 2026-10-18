@@ -16,6 +16,7 @@ public class OrderService
     private const string OrderDeletedRoutingKey = "pedido.excluido";
     private const string StockOkRoutingKey = "pedido.estoque_ok";
     private const string StockUnavailableRoutingKey = "pedido.indisponivel";
+    private const string PaymentPendingRoutingKey = "pagamento.pendente";
     private const string PaymentApprovedRoutingKey = "pagamento.aprovado";
     private const string PaymentRejectedRoutingKey = "pagamento.recusado";
     private const string OrderShippedRoutingKey = "pedido.enviado";
@@ -53,6 +54,7 @@ public class OrderService
 
         await channel.QueueBindAsync(queue: QueueName, exchange: ExchangeName, routingKey: StockOkRoutingKey);
         await channel.QueueBindAsync(queue: QueueName, exchange: ExchangeName, routingKey: StockUnavailableRoutingKey);
+        await channel.QueueBindAsync(queue: QueueName, exchange: ExchangeName, routingKey: PaymentPendingRoutingKey);
         await channel.QueueBindAsync(queue: QueueName, exchange: ExchangeName, routingKey: PaymentApprovedRoutingKey);
         await channel.QueueBindAsync(queue: QueueName, exchange: ExchangeName, routingKey: PaymentRejectedRoutingKey);
         await channel.QueueBindAsync(queue: QueueName, exchange: ExchangeName, routingKey: OrderShippedRoutingKey);
@@ -115,6 +117,9 @@ public class OrderService
             case StockUnavailableRoutingKey:
                 HandleStockUnavailable(body);
                 break;
+            case PaymentPendingRoutingKey:
+                HandlePaymentPending(body);
+                break;
             case PaymentApprovedRoutingKey:
                 HandlePaymentApproved(body);
                 break;
@@ -151,6 +156,18 @@ public class OrderService
 
         OrderRepository.Remove(stockUnavailable.OrderId);
         Console.WriteLine($" [x] Pedido {stockUnavailable.OrderId} -> indisponível, pedido excluído.");
+    }
+
+    private void HandlePaymentPending(byte[] body)
+    {
+        var payment = JsonSerializer.Deserialize<PaymentPendingEvent>(body, ReadOptions);
+        if (payment is null)
+        {
+            return;
+        }
+
+        OrderRepository.UpdatePayment(payment.OrderId, "Aguardando pagamento", payment.CheckoutUrl);
+        Console.WriteLine($" [x] Pedido {payment.OrderId} -> aguardando pagamento: {payment.CheckoutUrl}");
     }
 
     private void HandlePaymentApproved(byte[] body)
@@ -227,7 +244,7 @@ public class OrderService
         return ea.RoutingKey switch
         {
             StockOkRoutingKey or StockUnavailableRoutingKey => _stockPublicKey.VerifyData(body, signatureBytes, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1),
-            PaymentApprovedRoutingKey or PaymentRejectedRoutingKey => _paymentPublicKey.VerifyData(body, signatureBytes, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1),
+            PaymentPendingRoutingKey or PaymentApprovedRoutingKey or PaymentRejectedRoutingKey => _paymentPublicKey.VerifyData(body, signatureBytes, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1),
             OrderShippedRoutingKey => _deliveryPublicKey.VerifyData(body, signatureBytes, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1),
             _ => false
         };

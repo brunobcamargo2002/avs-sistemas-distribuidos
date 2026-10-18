@@ -45,6 +45,19 @@ public static class OrderRepository
         return ReadOrders().Find(o => o.OrderId == orderId);
     }
 
+    /// <summary>Grava o status e o link de checkout devolvido pelo provedor.</summary>
+    public static void UpdatePayment(Guid orderId, string status, string checkoutUrl)
+    {
+        var orders = ReadOrders();
+        var order = orders.Find(o => o.OrderId == orderId);
+        if (order is not null)
+        {
+            order.Status = status;
+            order.PaymentUrl = checkoutUrl;
+            WriteOrders(orders);
+        }
+    }
+
     public static void UpdateStatus(Guid orderId, string status)
     {
         var orders = ReadOrders();
