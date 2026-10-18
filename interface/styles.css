@@ -155,6 +155,9 @@ h2 { margin-bottom: 0; font: 600 25px/1.1 var(--display); letter-spacing: 0; }
 .status-pill.rejected, .status-pill.unavailable { color: #984c35; background: #f8e8df; }
 .status-pill.shipped { color: #435b81; background: #e8edf6; }
 .order-details { margin: 6px 0 0; color: #838981; font-size: 10px; line-height: 1.55; }
+.status-pill.pending { color: #8a5a00; background: #fdf1dc; }
+.payment-link { display: inline-block; margin: 8px 0 0; padding: 5px 10px; border-radius: 2px; background: #46694d; color: #fff; font-size: 9px; font-weight: 700; text-decoration: none; }
+.payment-link:hover { background: #395541; }
 .orders-note { margin: 11px 0 0; display: flex; align-items: center; gap: 8px; color: #8b9188; font-size: 9px; }
 .live-dot { width: 6px; height: 6px; box-shadow: none; }
 .site-footer { min-height: 72px; padding: 14px clamp(20px, 5vw, 76px); display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid #dedfd5; color: #7d847b; font-size: 8px; letter-spacing: 1px; }

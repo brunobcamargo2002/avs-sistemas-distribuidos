@@ -121,12 +121,16 @@ function renderCart() {
 function renderOrders(orders) {
   elements.ordersList.innerHTML = orders.length ? orders.map((order) => {
     const status = order.status ?? "Criado";
-    const statusClass = /recusado/i.test(status) ? "rejected" : /indisponível/i.test(status) ? "unavailable" : /enviado/i.test(status) ? "shipped" : "";
+    const statusClass = /recusado/i.test(status) ? "rejected" : /indisponível/i.test(status) ? "unavailable" : /enviado/i.test(status) ? "shipped" : /aguardando/i.test(status) ? "pending" : "";
     const itemSummary = order.items.map((item) => `${item.quantity}× ${escapeHtml(item.name)}`).join(" · ");
     const date = new Date(order.createdAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+    const paymentLink = order.paymentUrl && /aguardando/i.test(status)
+      ? `<a class="payment-link" href="${escapeHtml(order.paymentUrl)}" target="_blank" rel="noopener">Pagar agora</a>`
+      : "";
     return `<article class="order-row">
       <div class="order-topline"><span class="order-number">Pedido #${order.orderNumber}</span><span class="status-pill ${statusClass}">${escapeHtml(status)}</span></div>
       <p class="order-details">${itemSummary}<br />${date}</p>
+      ${paymentLink}
     </article>`;
   }).join("") : '<p class="empty-state">Ainda não há pedidos para este cliente.</p>';
 }

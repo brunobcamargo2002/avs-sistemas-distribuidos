@@ -6,7 +6,7 @@ Na pasta `avaliacao-2/application` estão os serviços independentes:
 
 - `orders`: API REST da loja, publicação de pedidos e estado dos pedidos;
 - `stock`: API REST do catálogo, reserva e devolução no `product-catalog.json`;
-- `payment`: cria a cobrança no provedor externo, expõe o webhook de retorno e publica o resultado;
+- `payment`: cria a cobrança no provedor externo, repassa o link e publica o resultado do webhook;
 - `delivery`: emite nota, código de rastreio e o evento de envio.
 
 Fora de `application`, em `avaliacao-2/payment-mock`, está o **Mock de Pagamento**: um sistema externo que simula o provedor. Ele não participa do RabbitMQ nem assina mensagens — conversa com o `payment` apenas por REST.
@@ -84,9 +84,9 @@ dotnet run --project avaliacao-2/application/orders/orders.csproj
 ## Fluxo de pagamento
 
 1. O `payment` consome `pedido.estoque_ok` e chama `POST /api/charges` do mock **de forma síncrona**, informando a própria URL de webhook. O retorno é o link de checkout.
-2. O link é persistido em `payments.json` com status `PENDENTE` e publicado em `pagamento.pendente`.
+2. O link é repassado em `pagamento.pendente`; o `payment` não guarda nada sobre a cobrança.
 3. O `orders` consome esse evento, grava o link no pedido e muda o status para `Aguardando pagamento`. O front exibe o botão "Pagar agora".
 4. O cliente abre o link, clica em "Pagamento Aprovado" ou "Pagamento Recusado", e o mock dispara o webhook `POST /api/webhooks/payment`.
-5. O `payment` liquida o registro (`APROVADO`/`RECUSADO`) e publica `pagamento.aprovado` ou `pagamento.recusado`.
+5. O `payment` publica `pagamento.aprovado` ou `pagamento.recusado` com os dados da notificação (inclusive o valor).
 
-O fluxo aprovado termina em `Enviado`; uma recusa exclui o pedido e publica `pedido.excluido` para devolver a reserva. Os arquivos `payments.json` (pagamentos do lojista) e `payment-mock/charges.json` (cobranças do provedor) são criados na primeira execução.
+O fluxo aprovado termina em `Enviado`; uma recusa exclui o pedido e publica `pedido.excluido` para devolver a reserva. O link e o status ficam no `orders.json` (visão do lojista) e em `payment-mock/charges.json` (visão do provedor, criado na primeira execução).
