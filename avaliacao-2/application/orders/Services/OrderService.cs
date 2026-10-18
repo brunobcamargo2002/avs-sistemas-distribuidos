@@ -21,6 +21,14 @@ public class OrderService
     private const string PaymentRejectedRoutingKey = "pagamento.recusado";
     private const string OrderShippedRoutingKey = "pedido.enviado";
 
+    // Labels dos eventos SSE: dizem o que mudou, sem carregar o pedido.
+    private const string StockConfirmedLabel = "estoque-confirmado";
+    private const string StockUnavailableLabel = "estoque-indisponivel";
+    private const string AwaitingPaymentLabel = "aguardando-pagamento";
+    private const string PaymentApprovedLabel = "pagamento-aprovado";
+    private const string PaymentRejectedLabel = "pagamento-recusado";
+    private const string OrderShippedLabel = "pedido-enviado";
+
     private static readonly JsonSerializerOptions ReadOptions = new() { PropertyNameCaseInsensitive = true };
 
     private readonly IChannel _channel;
@@ -28,17 +36,19 @@ public class OrderService
     private readonly RSA _stockPublicKey;
     private readonly RSA _paymentPublicKey;
     private readonly RSA _deliveryPublicKey;
+    private readonly OrderNotifier _notifier;
 
-    private OrderService(IChannel channel, RSA signingKey, RSA stockPublicKey, RSA paymentPublicKey, RSA deliveryPublicKey)
+    private OrderService(IChannel channel, RSA signingKey, RSA stockPublicKey, RSA paymentPublicKey, RSA deliveryPublicKey, OrderNotifier notifier)
     {
         _channel = channel;
         _signingKey = signingKey;
         _stockPublicKey = stockPublicKey;
         _paymentPublicKey = paymentPublicKey;
         _deliveryPublicKey = deliveryPublicKey;
+        _notifier = notifier;
     }
 
-    public static async Task<OrderService> CreateAsync(ConnectionFactory factory)
+    public static async Task<OrderService> CreateAsync(ConnectionFactory factory, OrderNotifier notifier)
     {
         var connection = await factory.CreateConnectionAsync();
         var channel = await connection.CreateChannelAsync();
@@ -64,7 +74,7 @@ public class OrderService
         var paymentPublicKey = KeyManager.LoadPaymentPublicKey();
         var deliveryPublicKey = KeyManager.LoadDeliveryPublicKey();
 
-        return new OrderService(channel, signingKey, stockPublicKey, paymentPublicKey, deliveryPublicKey);
+        return new OrderService(channel, signingKey, stockPublicKey, paymentPublicKey, deliveryPublicKey, notifier);
     }
 
     public async Task StartConsumingAsync()
@@ -142,7 +152,12 @@ public class OrderService
             return;
         }
 
-        OrderRepository.UpdateStatus(stockOk.OrderId, "Estoque confirmado");
+        var order = OrderRepository.UpdateStatus(stockOk.OrderId, "Estoque confirmado");
+
+        if (order is not null)
+        {
+            _notifier.Publish(order.CustomerId, StockConfirmedLabel, new OrderEvent(order.OrderId));
+        }
         Console.WriteLine($" [x] Pedido {stockOk.OrderId} -> estoque confirmado.");
     }
 
@@ -154,7 +169,13 @@ public class OrderService
             return;
         }
 
+        var unavailable = OrderRepository.Find(stockUnavailable.OrderId);
         OrderRepository.Remove(stockUnavailable.OrderId);
+
+        if (unavailable is not null)
+        {
+            _notifier.Publish(unavailable.CustomerId, StockUnavailableLabel, new OrderEvent(unavailable.OrderId));
+        }
         Console.WriteLine($" [x] Pedido {stockUnavailable.OrderId} -> indisponível, pedido excluído.");
     }
 
@@ -166,7 +187,12 @@ public class OrderService
             return;
         }
 
-        OrderRepository.UpdatePayment(payment.OrderId, "Aguardando pagamento", payment.CheckoutUrl);
+        var order = OrderRepository.UpdatePayment(payment.OrderId, "Aguardando pagamento", payment.CheckoutUrl);
+
+        if (order is not null)
+        {
+            _notifier.Publish(order.CustomerId, AwaitingPaymentLabel, new OrderEvent(order.OrderId, payment.CheckoutUrl));
+        }
         Console.WriteLine($" [x] Pedido {payment.OrderId} -> aguardando pagamento: {payment.CheckoutUrl}");
     }
 
@@ -178,7 +204,12 @@ public class OrderService
             return;
         }
 
-        OrderRepository.UpdateStatus(payment.OrderId, "Pagamento aprovado");
+        var order = OrderRepository.UpdateStatus(payment.OrderId, "Pagamento aprovado");
+
+        if (order is not null)
+        {
+            _notifier.Publish(order.CustomerId, PaymentApprovedLabel, new OrderEvent(order.OrderId));
+        }
         Console.WriteLine($" [x] Pedido {payment.OrderId} -> pagamento aprovado.");
     }
 
@@ -194,6 +225,9 @@ public class OrderService
         if (order is not null)
         {
             await DeleteOrderAsync(order);
+            // A exclusão devolve a reserva ao catálogo: o front repõe sem consultar a API.
+            var released = order.Items.Select(item => new ReleasedItem(item.ProductId, item.Quantity)).ToList();
+            _notifier.Publish(order.CustomerId, PaymentRejectedLabel, new OrderEvent(order.OrderId, ReleasedItems: released));
         }
 
         Console.WriteLine($" [x] Pedido {payment.OrderId} -> pagamento recusado, pedido excluído.");
@@ -207,7 +241,12 @@ public class OrderService
             return;
         }
 
-        OrderRepository.UpdateStatus(shipment.OrderId, "Enviado");
+        var order = OrderRepository.UpdateStatus(shipment.OrderId, "Enviado");
+
+        if (order is not null)
+        {
+            _notifier.Publish(order.CustomerId, OrderShippedLabel, new OrderEvent(order.OrderId));
+        }
         Console.WriteLine($" [x] Pedido {shipment.OrderId} -> enviado ({shipment.TrackingCode}).");
     }
 

@@ -20,7 +20,8 @@ var factory = new ConnectionFactory
     Password = "admin"
 };
 
-var orderService = await OrderService.CreateAsync(factory);
+var notifier = new OrderNotifier();
+var orderService = await OrderService.CreateAsync(factory, notifier);
 await orderService.StartConsumingAsync();
 
 var app = builder.Build();
@@ -28,6 +29,6 @@ var app = builder.Build();
 app.UseCors();
 
 app.MapProductEndpoints();
-app.MapOrderEndpoints(orderService);
+app.MapOrderEndpoints(orderService, notifier);
 
 await app.RunAsync();

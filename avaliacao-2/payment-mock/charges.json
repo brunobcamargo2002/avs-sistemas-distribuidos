@@ -1,0 +1,92 @@
+[
+  {
+    "chargeId": "16c3bed5-f446-479c-80fd-03b68d2d2e62",
+    "orderId": "262fb6e6-a33c-47ab-96ff-cfb8f7032961",
+    "amount": 689.80,
+    "webhookUrl": "http://localhost:5082/api/webhooks/payment",
+    "status": "APROVADO",
+    "createdAt": "2026-10-18T04:51:10.761041+00:00",
+    "decidedAt": "2026-10-18T04:51:20.3607866+00:00"
+  },
+  {
+    "chargeId": "4260813a-cd6e-4660-8b61-3f668b724943",
+    "orderId": "9f0557f0-b946-4c5c-8c10-b4db4115314c",
+    "amount": 689.80,
+    "webhookUrl": "http://localhost:5082/api/webhooks/payment",
+    "status": "RECUSADO",
+    "createdAt": "2026-10-18T04:51:34.977899+00:00",
+    "decidedAt": "2026-10-18T04:51:39.0049859+00:00"
+  },
+  {
+    "chargeId": "3f5665e7-843d-4434-89cf-cdb908fc9b70",
+    "orderId": "50485421-a688-4d71-b17d-7426ebef249a",
+    "amount": 2499.90,
+    "webhookUrl": "http://localhost:5082/api/webhooks/payment",
+    "status": "PENDENTE",
+    "createdAt": "2026-10-18T05:10:33.5364388+00:00",
+    "decidedAt": null
+  },
+  {
+    "chargeId": "2ed43e66-94dd-48c9-a842-c4f5ef234c28",
+    "orderId": "6b24ffba-85f2-4bf4-9563-9ed827750152",
+    "amount": 1948.90,
+    "webhookUrl": "http://localhost:5082/api/webhooks/payment",
+    "status": "APROVADO",
+    "createdAt": "2026-10-18T06:18:25.2761351+00:00",
+    "decidedAt": "2026-10-18T06:18:41.1730557+00:00"
+  },
+  {
+    "chargeId": "c563a995-33d0-4347-90a6-6e59c770f99d",
+    "orderId": "b80452dc-87a3-4895-9602-26e297f7ba65",
+    "amount": 689.80,
+    "webhookUrl": "http://localhost:5082/api/webhooks/payment",
+    "status": "APROVADO",
+    "createdAt": "2026-10-18T06:20:43.882332+00:00",
+    "decidedAt": "2026-10-18T06:20:57.3417077+00:00"
+  },
+  {
+    "chargeId": "031adca8-13a2-4a67-aa3a-5ce75e6d03c5",
+    "orderId": "f66a4c01-6679-42c4-b47a-4bc5b9b084e6",
+    "amount": 3298.00,
+    "webhookUrl": "http://localhost:5082/api/webhooks/payment",
+    "status": "APROVADO",
+    "createdAt": "2026-10-18T06:22:55.7244182+00:00",
+    "decidedAt": "2026-10-18T06:23:02.8488039+00:00"
+  },
+  {
+    "chargeId": "990f92a9-6b27-41b9-91f6-486be1f22693",
+    "orderId": "5959c672-6b08-49a1-9ebd-76d9e9f4221d",
+    "amount": 359.80,
+    "webhookUrl": "http://localhost:5082/api/webhooks/payment",
+    "status": "APROVADO",
+    "createdAt": "2026-10-18T06:23:35.2180178+00:00",
+    "decidedAt": "2026-10-18T06:23:36.5907559+00:00"
+  },
+  {
+    "chargeId": "61f22fcb-fc3f-42bd-b396-fd4049bef301",
+    "orderId": "bd5dcf5c-b0be-4616-a417-67d8181ee793",
+    "amount": 1688.90,
+    "webhookUrl": "http://localhost:5082/api/webhooks/payment",
+    "status": "APROVADO",
+    "createdAt": "2026-10-18T06:23:50.6395524+00:00",
+    "decidedAt": "2026-10-18T06:23:58.4161159+00:00"
+  },
+  {
+    "chargeId": "b6fc3f7a-9156-4b89-aa2d-a5c53cb31c85",
+    "orderId": "a49a10cb-dc53-4ce2-87c1-43563d82ba82",
+    "amount": 1688.90,
+    "webhookUrl": "http://localhost:5082/api/webhooks/payment",
+    "status": "APROVADO",
+    "createdAt": "2026-10-18T06:25:08.8916489+00:00",
+    "decidedAt": "2026-10-18T06:25:16.7322642+00:00"
+  },
+  {
+    "chargeId": "ab8f124d-9fa6-4612-9101-ecb217ee16bc",
+    "orderId": "9f0bb501-2770-4959-b1d1-60b0a9bb83a8",
+    "amount": 1588.90,
+    "webhookUrl": "http://localhost:5082/api/webhooks/payment",
+    "status": "RECUSADO",
+    "createdAt": "2026-10-18T06:25:35.3228844+00:00",
+    "decidedAt": "2026-10-18T06:25:36.6069571+00:00"
+  }
+]

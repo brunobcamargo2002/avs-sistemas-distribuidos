@@ -8,6 +8,12 @@ const state = {
   category: "Todas",
   search: "",
   availableOnly: false,
+  stream: null,
+  // Pedido que acabou de ser criado e está esperando o link de pagamento.
+  awaitingPaymentFor: null,
+  // Aba aberta no clique de "Finalizar": o navegador só permite abrir durante
+  // o gesto do usuário, então ela nasce em branco e recebe a URL depois.
+  paymentTab: null,
 };
 
 const elements = {
@@ -118,21 +124,82 @@ function renderCart() {
   }).join("") : '<p class="empty-state">Seu carrinho está vazio.<br />Adicione uma peça para começar.</p>';
 }
 
+// Label do evento SSE → o que a linha do pedido deve passar a mostrar.
+// O servidor manda apenas o label e o id; o texto do status é daqui.
+const ORDER_EVENTS = {
+  "estoque-confirmado": { status: "Estoque confirmado" },
+  "aguardando-pagamento": { status: "Aguardando pagamento" },
+  "pagamento-aprovado": { status: "Pagamento aprovado" },
+  "pedido-enviado": { status: "Enviado" },
+  // Falta de estoque não chega a reservar nada, então o catálogo não muda.
+  "estoque-indisponivel": { removed: true },
+  // A exclusão por recusa devolve a reserva: o evento traz os itens repostos.
+  "pagamento-recusado": { removed: true, restoresStock: true },
+};
+
+function statusClassFor(status) {
+  return /recusado/i.test(status) ? "rejected" : /indisponível/i.test(status) ? "unavailable" : /enviado/i.test(status) ? "shipped" : /aguardando/i.test(status) ? "pending" : "";
+}
+
+function paymentLinkHtml(paymentUrl, status) {
+  return paymentUrl && /aguardando/i.test(status)
+    ? `<a class="payment-link" href="${escapeHtml(paymentUrl)}" target="_blank" rel="noopener">Pagar agora</a>`
+    : "";
+}
+
 function renderOrders(orders) {
   elements.ordersList.innerHTML = orders.length ? orders.map((order) => {
     const status = order.status ?? "Criado";
-    const statusClass = /recusado/i.test(status) ? "rejected" : /indisponível/i.test(status) ? "unavailable" : /enviado/i.test(status) ? "shipped" : /aguardando/i.test(status) ? "pending" : "";
     const itemSummary = order.items.map((item) => `${item.quantity}× ${escapeHtml(item.name)}`).join(" · ");
     const date = new Date(order.createdAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
-    const paymentLink = order.paymentUrl && /aguardando/i.test(status)
-      ? `<a class="payment-link" href="${escapeHtml(order.paymentUrl)}" target="_blank" rel="noopener">Pagar agora</a>`
-      : "";
-    return `<article class="order-row">
-      <div class="order-topline"><span class="order-number">Pedido #${order.orderNumber}</span><span class="status-pill ${statusClass}">${escapeHtml(status)}</span></div>
+    return `<article class="order-row" data-order-id="${escapeHtml(order.orderId)}">
+      <div class="order-topline"><span class="order-number">Pedido #${order.orderNumber}</span><span class="status-pill ${statusClassFor(status)}">${escapeHtml(status)}</span></div>
       <p class="order-details">${itemSummary}<br />${date}</p>
-      ${paymentLink}
+      ${paymentLinkHtml(order.paymentUrl, status)}
     </article>`;
   }).join("") : '<p class="empty-state">Ainda não há pedidos para este cliente.</p>';
+}
+
+function findOrderRow(orderId) {
+  return elements.ordersList.querySelector(`[data-order-id="${orderId}"]`);
+}
+
+/// Atualiza somente a linha daquele pedido: selo de status e link de pagamento.
+/// Ignora pedidos que não estão na tela — nada é buscado na API.
+function patchOrderRow(orderId, status, paymentUrl) {
+  const row = findOrderRow(orderId);
+  if (!row) return;
+
+  const pill = row.querySelector(".status-pill");
+  pill.textContent = status;
+  pill.className = `status-pill ${statusClassFor(status)}`;
+
+  const link = row.querySelector(".payment-link");
+  const linkHtml = paymentLinkHtml(paymentUrl, status);
+
+  if (linkHtml && link) link.href = paymentUrl;
+  else if (linkHtml) row.insertAdjacentHTML("beforeend", linkHtml);
+  else link?.remove();
+}
+
+/// Repõe em memória o estoque devolvido pela exclusão do pedido.
+function restoreStock(releasedItems) {
+  for (const item of releasedItems ?? []) {
+    const product = state.products.find((candidate) => candidate.id === item.productId);
+    if (product) product.stock += item.quantity;
+  }
+
+  renderProducts();
+  renderCart();
+}
+
+/// Pedido cancelado pelo estoque ou pelo pagamento: sai da lista.
+function removeOrderRow(orderId) {
+  findOrderRow(orderId)?.remove();
+
+  if (!elements.ordersList.querySelector("[data-order-id]")) {
+    elements.ordersList.innerHTML = '<p class="empty-state">Ainda não há pedidos para este cliente.</p>';
+  }
 }
 
 async function loadProducts() {
@@ -171,6 +238,7 @@ elements.customerId.value = localStorage.getItem("customerId") || elements.custo
 elements.customerId.addEventListener("change", () => {
   localStorage.setItem("customerId", elements.customerId.value.trim());
   loadOrders();
+  connectStream(elements.customerId.value.trim());
 });
 
 elements.categoryFilters.addEventListener("click", (event) => {
@@ -228,6 +296,10 @@ elements.submitOrder.addEventListener("click", async () => {
     return;
   }
 
+  // Abre a aba agora, ainda dentro do clique, senão o bloqueador de pop-up
+  // barra a abertura quando o link chegar pelo SSE segundos depois.
+  state.paymentTab = window.open("about:blank", "_blank");
+
   elements.submitOrder.disabled = true;
   elements.orderFeedback.classList.remove("error");
   elements.orderFeedback.textContent = "Enviando pedido...";
@@ -248,9 +320,12 @@ elements.submitOrder.addEventListener("click", async () => {
     if (!response.ok) throw new Error(result.detail ?? result.message ?? "Não foi possível criar o pedido.");
     state.cart.clear();
     renderCart();
-    elements.orderFeedback.textContent = `Pedido #${result.orderNumber} criado e enviado para processamento.`;
+    state.awaitingPaymentFor = result.orderId;
+    elements.orderFeedback.textContent = `Pedido #${result.orderNumber} criado. Aguardando o link de pagamento...`;
     await Promise.all([loadOrders(), loadProducts()]);
   } catch (error) {
+    closePaymentTab();
+    state.awaitingPaymentFor = null;
     elements.orderFeedback.textContent = error.message;
     elements.orderFeedback.classList.add("error");
   } finally {
@@ -258,8 +333,74 @@ elements.submitOrder.addEventListener("click", async () => {
   }
 });
 
+function closePaymentTab() {
+  try {
+    state.paymentTab?.close();
+  } catch {
+    // A aba pode já ter sido fechada pelo usuário.
+  }
+  state.paymentTab = null;
+}
+
+/// Abre o checkout: reaproveita a aba do clique ou cai no botão "Pagar agora".
+function openCheckout(paymentUrl) {
+  if (state.paymentTab && !state.paymentTab.closed) {
+    state.paymentTab.location.href = paymentUrl;
+    state.paymentTab.focus?.();
+    elements.orderFeedback.textContent = "Conclua o pagamento na aba que acabou de abrir.";
+  } else {
+    elements.orderFeedback.textContent = 'Pagamento pronto: use o botão "Pagar agora" na lista de pedidos.';
+  }
+
+  state.paymentTab = null;
+  state.awaitingPaymentFor = null;
+}
+
+/// Mantém a conexão SSE com o gateway para receber as mudanças de status.
+function connectStream(customerId) {
+  state.stream?.close();
+  state.stream = null;
+
+  if (!customerId) return;
+
+  const stream = new EventSource(`${API_BASE}/api/orders/stream?customerId=${encodeURIComponent(customerId)}`);
+  state.stream = stream;
+
+  stream.onopen = () => console.log(`[SSE] conectado (cliente ${customerId})`);
+
+  // Um listener por label. Eventos nomeados não caem no onmessage.
+  for (const [label, rule] of Object.entries(ORDER_EVENTS)) {
+    stream.addEventListener(label, (event) => {
+      const { orderId, paymentUrl, releasedItems } = JSON.parse(event.data);
+      console.log(`[SSE] ${label}`, { orderId, paymentUrl, releasedItems });
+
+      if (rule.removed) {
+        removeOrderRow(orderId);
+        if (rule.restoresStock) restoreStock(releasedItems);
+        return;
+      }
+
+      if (orderId === state.awaitingPaymentFor && paymentUrl) {
+        openCheckout(paymentUrl);
+      }
+
+      // Só a linha daquele pedido é tocada; nenhuma requisição é feita.
+      patchOrderRow(orderId, rule.status, paymentUrl);
+    });
+  }
+
+  stream.onerror = () => {
+    console.warn(`[SSE] erro, readyState = ${stream.readyState}`, "(0 conectando, 1 aberto, 2 fechado)");
+
+    // O EventSource reconecta sozinho; só avisa se a conexão não voltar.
+    if (stream.readyState === EventSource.CLOSED) {
+      elements.orderFeedback.textContent = "Acompanhamento em tempo real indisponível. Use o botão Atualizar.";
+    }
+  };
+}
+
 document.querySelector("#refresh-orders").addEventListener("click", loadOrders);
 
 loadProducts();
 loadOrders();
-window.setInterval(loadOrders, 5000);
+connectStream(elements.customerId.value.trim());

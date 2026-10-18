@@ -15,7 +15,7 @@ Uso: $0 [opção]
 Opções:
   --all       Configura chaves/RabbitMQ, compila e inicia todos os serviços (padrão)
   --setup     Gera/copiar chaves e inicia/configura o RabbitMQ
-  --build     Compila os seis projetos
+  --build     Compila os sete projetos
   --run       Inicia os serviços sem configurar nem compilar
   --help      Mostra esta ajuda
 
@@ -117,6 +117,7 @@ build_projects() {
         "$APP_DIR/orders/orders.csproj"
         "$APP_DIR/stock/stock.csproj"
         "$APP_DIR/payment/payment.csproj"
+        "$ROOT_DIR/payment-mock/payment-mock.csproj"
         "$APP_DIR/delivery/delivery.csproj"
         "$PROMOTIONS_DIR/publisher-promotions/publisher-promotions.csproj"
         "$PROMOTIONS_DIR/consumer-promotions/consumer-promotions.csproj"
@@ -149,6 +150,7 @@ terminal_command() {
 
 run_services() {
     terminal_command "Estoque" "cd '$APP_DIR/stock' && dotnet run --project stock.csproj"
+    terminal_command "Mock de Pagamento" "cd '$ROOT_DIR/payment-mock' && dotnet run --project payment-mock.csproj"
     terminal_command "Pagamento" "cd '$APP_DIR/payment' && dotnet run --project payment.csproj"
     terminal_command "Entrega" "cd '$APP_DIR/delivery' && dotnet run --project delivery.csproj"
     terminal_command "Pedidos" "cd '$APP_DIR/orders' && dotnet run --project orders.csproj"

@@ -11,6 +11,342 @@
       }
     ],
     "status": "Confirmado",
+    "paymentUrl": null,
     "createdAt": "2026-09-13T07:18:56.6154791+00:00"
+  },
+  {
+    "orderNumber": 2,
+    "orderId": "d910450a-8e9b-4fa1-bafb-68403f6369d7",
+    "customerId": "5",
+    "items": [
+      {
+        "productId": 1,
+        "name": "Placa de Vídeo RTX 4060",
+        "quantity": 1
+      }
+    ],
+    "status": "Enviado",
+    "paymentUrl": null,
+    "createdAt": "2026-09-22T01:33:18.7800701+00:00"
+  },
+  {
+    "orderNumber": 3,
+    "orderId": "814690e3-fba3-4479-bf61-dec29ad929ad",
+    "customerId": "5",
+    "items": [
+      {
+        "productId": 21,
+        "name": "Roteador Wi-Fi 6 AX3000",
+        "quantity": 1
+      }
+    ],
+    "status": "Enviado",
+    "paymentUrl": null,
+    "createdAt": "2026-09-22T01:34:33.3923273+00:00"
+  },
+  {
+    "orderNumber": 4,
+    "orderId": "8c96fcd8-8f94-4aa6-b477-4b48e85c34af",
+    "customerId": "5",
+    "items": [
+      {
+        "productId": 26,
+        "name": "Mousepad Gamer XL",
+        "quantity": 1
+      }
+    ],
+    "status": "Enviado",
+    "paymentUrl": null,
+    "createdAt": "2026-09-22T01:34:40.7315285+00:00"
+  },
+  {
+    "orderNumber": 5,
+    "orderId": "29fbaaf7-40f8-475a-9e46-432d8641aac5",
+    "customerId": "5",
+    "items": [
+      {
+        "productId": 26,
+        "name": "Mousepad Gamer XL",
+        "quantity": 1
+      }
+    ],
+    "status": "Enviado",
+    "paymentUrl": null,
+    "createdAt": "2026-09-22T01:34:46.6340712+00:00"
+  },
+  {
+    "orderNumber": 6,
+    "orderId": "9c056479-b932-4a5e-a550-5b871cd9589d",
+    "customerId": "5",
+    "items": [
+      {
+        "productId": 1,
+        "name": "Placa de Vídeo RTX 4060",
+        "quantity": 1
+      }
+    ],
+    "status": "Enviado",
+    "paymentUrl": null,
+    "createdAt": "2026-09-22T01:34:55.1054686+00:00"
+  },
+  {
+    "orderNumber": 7,
+    "orderId": "e2ee969e-5bd0-4cc4-af34-db1484ae047c",
+    "customerId": "5",
+    "items": [
+      {
+        "productId": 26,
+        "name": "Mousepad Gamer XL",
+        "quantity": 1
+      }
+    ],
+    "status": "Enviado",
+    "paymentUrl": null,
+    "createdAt": "2026-09-22T01:35:30.2552911+00:00"
+  },
+  {
+    "orderNumber": 8,
+    "orderId": "705879ad-a83b-426c-a463-b1d8a33d96d7",
+    "customerId": "5",
+    "items": [
+      {
+        "productId": 26,
+        "name": "Mousepad Gamer XL",
+        "quantity": 1
+      }
+    ],
+    "status": "Enviado",
+    "paymentUrl": null,
+    "createdAt": "2026-09-22T01:35:34.4223369+00:00"
+  },
+  {
+    "orderNumber": 9,
+    "orderId": "587bac07-a495-4bc9-93fe-7264da4e7db5",
+    "customerId": "5",
+    "items": [
+      {
+        "productId": 12,
+        "name": "Gabinete Gamer ATX RGB",
+        "quantity": 2
+      }
+    ],
+    "status": "Enviado",
+    "paymentUrl": null,
+    "createdAt": "2026-09-22T18:41:59.4304393+00:00"
+  },
+  {
+    "orderNumber": 10,
+    "orderId": "f8eb6f2e-0649-4319-a5e8-522ddffa534e",
+    "customerId": "cliente-demo",
+    "items": [
+      {
+        "productId": 5,
+        "name": "Placa Mãe B450M Gaming",
+        "quantity": 1
+      }
+    ],
+    "status": "Enviado",
+    "paymentUrl": null,
+    "createdAt": "2026-10-14T02:05:49.1734625+00:00"
+  },
+  {
+    "orderNumber": 11,
+    "orderId": "2b37055a-d60c-4f3e-b8be-200cc31c06e3",
+    "customerId": "cliente-demo",
+    "items": [
+      {
+        "productId": 5,
+        "name": "Placa Mãe B450M Gaming",
+        "quantity": 1
+      }
+    ],
+    "status": "Enviado",
+    "paymentUrl": null,
+    "createdAt": "2026-10-14T02:06:23.5541147+00:00"
+  },
+  {
+    "orderNumber": 12,
+    "orderId": "39bc3468-9267-4e3a-ac34-c63b456a43fe",
+    "customerId": "client-demo",
+    "items": [
+      {
+        "productId": 5,
+        "name": "Placa Mãe B450M Gaming",
+        "quantity": 1
+      },
+      {
+        "productId": 3,
+        "name": "Processador Intel Core i5-13400",
+        "quantity": 1
+      },
+      {
+        "productId": 9,
+        "name": "SSD NVMe 1TB",
+        "quantity": 1
+      }
+    ],
+    "status": "Enviado",
+    "paymentUrl": null,
+    "createdAt": "2026-10-14T02:26:27.2949432+00:00"
+  },
+  {
+    "orderNumber": 13,
+    "orderId": "95d99a64-4aeb-4764-9d2b-9288ca457457",
+    "customerId": "client-demo",
+    "items": [
+      {
+        "productId": 14,
+        "name": "Teclado Mecânico RGB",
+        "quantity": 1
+      },
+      {
+        "productId": 13,
+        "name": "Water Cooler 240mm RGB",
+        "quantity": 1
+      },
+      {
+        "productId": 9,
+        "name": "SSD NVMe 1TB",
+        "quantity": 1
+      }
+    ],
+    "status": "Enviado",
+    "paymentUrl": null,
+    "createdAt": "2026-10-14T02:26:48.9550475+00:00"
+  },
+  {
+    "orderNumber": 14,
+    "orderId": "262fb6e6-a33c-47ab-96ff-cfb8f7032961",
+    "customerId": "cliente-demo",
+    "items": [
+      {
+        "productId": 7,
+        "name": "Memória RAM 16GB DDR4 3200MHz",
+        "quantity": 1
+      },
+      {
+        "productId": 10,
+        "name": "HD 2TB SATA",
+        "quantity": 1
+      }
+    ],
+    "status": "Enviado",
+    "paymentUrl": "http://localhost:5083/checkout/16c3bed5-f446-479c-80fd-03b68d2d2e62",
+    "createdAt": "2026-10-18T04:51:10.3467373+00:00"
+  },
+  {
+    "orderNumber": 15,
+    "orderId": "6b24ffba-85f2-4bf4-9563-9ed827750152",
+    "customerId": "client-demo",
+    "items": [
+      {
+        "productId": 5,
+        "name": "Placa Mãe B450M Gaming",
+        "quantity": 1
+      },
+      {
+        "productId": 3,
+        "name": "Processador Intel Core i5-13400",
+        "quantity": 1
+      }
+    ],
+    "status": "Enviado",
+    "paymentUrl": "http://localhost:5083/checkout/2ed43e66-94dd-48c9-a842-c4f5ef234c28",
+    "createdAt": "2026-10-18T06:18:24.8318925+00:00"
+  },
+  {
+    "orderNumber": 16,
+    "orderId": "b80452dc-87a3-4895-9602-26e297f7ba65",
+    "customerId": "client-demo",
+    "items": [
+      {
+        "productId": 14,
+        "name": "Teclado Mecânico RGB",
+        "quantity": 1
+      },
+      {
+        "productId": 10,
+        "name": "HD 2TB SATA",
+        "quantity": 1
+      }
+    ],
+    "status": "Enviado",
+    "paymentUrl": "http://localhost:5083/checkout/c563a995-33d0-4347-90a6-6e59c770f99d",
+    "createdAt": "2026-10-18T06:20:43.8211501+00:00"
+  },
+  {
+    "orderNumber": 17,
+    "orderId": "f66a4c01-6679-42c4-b47a-4bc5b9b084e6",
+    "customerId": "client-demo",
+    "items": [
+      {
+        "productId": 6,
+        "name": "Placa Mãe Z790 AORUS",
+        "quantity": 1
+      },
+      {
+        "productId": 3,
+        "name": "Processador Intel Core i5-13400",
+        "quantity": 1
+      }
+    ],
+    "status": "Enviado",
+    "paymentUrl": "http://localhost:5083/checkout/031adca8-13a2-4a67-aa3a-5ce75e6d03c5",
+    "createdAt": "2026-10-18T06:22:55.6458347+00:00"
+  },
+  {
+    "orderNumber": 18,
+    "orderId": "5959c672-6b08-49a1-9ebd-76d9e9f4221d",
+    "customerId": "client-demo",
+    "items": [
+      {
+        "productId": 18,
+        "name": "Webcam Full HD 1080p",
+        "quantity": 2
+      }
+    ],
+    "status": "Enviado",
+    "paymentUrl": "http://localhost:5083/checkout/990f92a9-6b27-41b9-91f6-486be1f22693",
+    "createdAt": "2026-10-18T06:23:35.1606444+00:00"
+  },
+  {
+    "orderNumber": 19,
+    "orderId": "bd5dcf5c-b0be-4616-a417-67d8181ee793",
+    "customerId": "client-demo",
+    "items": [
+      {
+        "productId": 3,
+        "name": "Processador Intel Core i5-13400",
+        "quantity": 1
+      },
+      {
+        "productId": 7,
+        "name": "Memória RAM 16GB DDR4 3200MHz",
+        "quantity": 1
+      }
+    ],
+    "status": "Enviado",
+    "paymentUrl": "http://localhost:5083/checkout/61f22fcb-fc3f-42bd-b396-fd4049bef301",
+    "createdAt": "2026-10-18T06:23:50.4770407+00:00"
+  },
+  {
+    "orderNumber": 20,
+    "orderId": "a49a10cb-dc53-4ce2-87c1-43563d82ba82",
+    "customerId": "client-demo",
+    "items": [
+      {
+        "productId": 7,
+        "name": "Memória RAM 16GB DDR4 3200MHz",
+        "quantity": 1
+      },
+      {
+        "productId": 3,
+        "name": "Processador Intel Core i5-13400",
+        "quantity": 1
+      }
+    ],
+    "status": "Enviado",
+    "paymentUrl": "http://localhost:5083/checkout/b6fc3f7a-9156-4b89-aa2d-a5c53cb31c85",
+    "createdAt": "2026-10-18T06:25:08.8306564+00:00"
   }
 ]

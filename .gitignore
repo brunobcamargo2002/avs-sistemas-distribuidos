@@ -27,6 +27,11 @@ TestResults/
 # Chaves e certificados
 *.pem
 
+# Front
+node_modules/
+dist/
+.vite/
+
 # OS files
 .DS_Store
 Thumbs.db

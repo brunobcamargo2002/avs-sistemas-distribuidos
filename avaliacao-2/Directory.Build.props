@@ -1,0 +1,14 @@
+<Project>
+
+  <PropertyGroup>
+    <!--
+      Os projetos são compilados tanto pelo SDK do Windows quanto pelo do WSL,
+      que compartilham a mesma pasta obj/. Cada versão do SDK grava uma
+      RazorLangVersion diferente no editorconfig gerado (10.0 contra 9.0), e a
+      mais nova é recusada pelo gerador do Razor da mais antiga (erro RZ3600).
+      Fixar em "Latest" dá o mesmo valor válido em qualquer SDK.
+    -->
+    <RazorLangVersion>Latest</RazorLangVersion>
+  </PropertyGroup>
+
+</Project>

@@ -41,7 +41,7 @@ a { color: inherit; text-decoration: none; }
 .brand-period { color: var(--coral); }
 .topbar-right { display: flex; align-items: center; gap: clamp(14px, 3vw, 34px); }
 .service-indicator { display: inline-flex; align-items: center; gap: 8px; color: #c7d3c9; font-size: 12px; }
-.indicator-dot, .live-dot { width: 7px; height: 7px; border-radius: 50%; background: #a8d256; box-shadow: 0 0 0 3px rgb(168 210 86 / 17%); }
+.indicator-dot { width: 7px; height: 7px; border-radius: 50%; background: #a8d256; box-shadow: 0 0 0 3px rgb(168 210 86 / 17%); }
 .customer-field { display: flex; align-items: center; gap: 9px; color: #bac7bb; font-size: 11px; }
 .customer-field input { width: 132px; padding: 7px 9px; border: 1px solid #46675b; border-radius: 4px; outline: none; color: white; background: #21483d; font-size: 12px; }
 .customer-field input:focus { border-color: var(--lime); }
@@ -158,8 +158,6 @@ h2 { margin-bottom: 0; font: 600 25px/1.1 var(--display); letter-spacing: 0; }
 .status-pill.pending { color: #8a5a00; background: #fdf1dc; }
 .payment-link { display: inline-block; margin: 8px 0 0; padding: 5px 10px; border-radius: 2px; background: #46694d; color: #fff; font-size: 9px; font-weight: 700; text-decoration: none; }
 .payment-link:hover { background: #395541; }
-.orders-note { margin: 11px 0 0; display: flex; align-items: center; gap: 8px; color: #8b9188; font-size: 9px; }
-.live-dot { width: 6px; height: 6px; box-shadow: none; }
 .site-footer { min-height: 72px; padding: 14px clamp(20px, 5vw, 76px); display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid #dedfd5; color: #7d847b; font-size: 8px; letter-spacing: 1px; }
 .brand-footer { color: var(--forest); font-size: 16px; letter-spacing: 0; }
 .brand-footer .brand-mark { width: 23px; height: 23px; font-size: 14px; }

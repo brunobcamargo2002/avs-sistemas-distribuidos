@@ -9,9 +9,13 @@ namespace orders.Endpoints;
 /// </summary>
 public static class OrderEndpoints
 {
-    public static RouteGroupBuilder MapOrderEndpoints(this IEndpointRouteBuilder app, OrderService orderService)
+    public static RouteGroupBuilder MapOrderEndpoints(this IEndpointRouteBuilder app, OrderService orderService, OrderNotifier notifier)
     {
         var group = app.MapGroup("/api/orders");
+
+        // Conexão SSE do front: recebe cada alteração de status do cliente.
+        group.MapGet("/stream", (string customerId, CancellationToken cancellationToken) =>
+            TypedResults.ServerSentEvents(notifier.SubscribeAsync(customerId, cancellationToken)));
 
         group.MapGet("/", (string customerId) =>
         {
