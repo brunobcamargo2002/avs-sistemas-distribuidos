@@ -10,4 +10,4 @@ public sealed record ChargeCreatedResponse(Guid ChargeId, string CheckoutUrl);
 public sealed record DecisionRequest(string Status);
 
 /// <summary>Corpo do webhook disparado para a URL informada pelo MS Pagamento.</summary>
-public sealed record WebhookNotification(Guid ChargeId, Guid OrderId, string Status, DateTimeOffset DecidedAt);
+public sealed record WebhookNotification(Guid ChargeId, Guid OrderId, string Status, decimal Amount, DateTimeOffset DecidedAt);

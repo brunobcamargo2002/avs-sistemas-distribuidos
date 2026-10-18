@@ -58,7 +58,7 @@ public static class ChargeEndpoints
                 return Results.Conflict(new { message = "Cobrança já foi decidida." });
             }
 
-            var notification = new WebhookNotification(charge.ChargeId, charge.OrderId, charge.Status, charge.DecidedAt!.Value);
+            var notification = new WebhookNotification(charge.ChargeId, charge.OrderId, charge.Status, charge.Amount, charge.DecidedAt!.Value);
 
             try
             {
