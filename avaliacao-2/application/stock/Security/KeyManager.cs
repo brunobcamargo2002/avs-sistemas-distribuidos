@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 namespace stock.Security;
 
 /// <summary>
-/// Carrega a chave privada do stock (para assinar pedido.estoque_ok / pedido.indisponivel)
+/// Carrega a chave privada do stock (para assinar pedido.estoque_ok / estoque.indisponivel)
 /// e a chave pública do orders (para verificar pedido.criado / pedido.excluido).
 /// As chaves devem existir previamente; se não existirem, a aplicação não deve iniciar.
 /// </summary>

@@ -27,11 +27,16 @@ Copie as chaves públicas conforme os consumidores:
 - `orders/Keys/stock_public_key.pem`, `payment_public_key.pem` e `delivery_public_key.pem`;
 - `stock/Keys/orders_public_key.pem`;
 - `payment/Keys/stock_public_key.pem`;
-- `delivery/Keys/payment_public_key.pem`.
+- `delivery/Keys/payment_public_key.pem`;
+- `promotions/consumer-promotions/Keys/public_key.pem` do publicador e `orders_public_key.pem` do Gateway.
 
 ## Execução
 
 Com o RabbitMQ disponível em `localhost` e usuário/senha `admin`:
+
+Os projetos exigem SDK .NET 10 ou superior. O script Bash deve ser executado em Linux/WSL com os comandos e terminais graficos necessarios disponiveis. Antes de abrir os servicos, `--run` e `--all` verificam o SDK ativo, as variaveis `RESEND_API_KEY` e `PROMOTIONS_FROM_EMAIL` e as chaves publicas usadas pelo consumidor de promocoes. As credenciais nao sao exibidas pelo script. Use `--setup` para preparar as chaves e o RabbitMQ sem iniciar os servicos.
+
+O evento de indisponibilidade segue o PDF: `estoque.indisponivel`, publicado pelo estoque e consumido pelo Gateway. Reinicie os dois servicos em conjunto apos atualizar. O nome do evento SSE da interface permanece `estoque-indisponivel`; ele e independente da routing key do RabbitMQ.
 
 A forma recomendada é usar o script da raiz do projeto. Ele configura as chaves, inicia/configura o RabbitMQ, compila os sete projetos e abre os serviços em terminais separados:
 

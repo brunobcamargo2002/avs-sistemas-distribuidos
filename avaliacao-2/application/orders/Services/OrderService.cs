@@ -15,7 +15,7 @@ public class OrderService
     private const string OrderCreatedRoutingKey = "pedido.criado";
     private const string OrderDeletedRoutingKey = "pedido.excluido";
     private const string StockOkRoutingKey = "pedido.estoque_ok";
-    private const string StockUnavailableRoutingKey = "pedido.indisponivel";
+    private const string StockUnavailableRoutingKey = "estoque.indisponivel";
     private const string PaymentPendingRoutingKey = "pagamento.pendente";
     private const string PaymentApprovedRoutingKey = "pagamento.aprovado";
     private const string PaymentRejectedRoutingKey = "pagamento.recusado";

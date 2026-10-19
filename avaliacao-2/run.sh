@@ -22,6 +22,10 @@ Opções:
 Variáveis opcionais:
   RABBITMQ_CONTAINER  Nome do container RabbitMQ (padrão: rabbitmq)
   RABBITMQ_IMAGE      Imagem Docker (padrão: rabbitmq:3-management)
+
+Variaveis obrigatorias para --run e --all:
+    RESEND_API_KEY         Chave da API do Resend, configurada no ambiente
+    PROMOTIONS_FROM_EMAIL  Remetente autorizado pelo Resend
 EOF
 }
 
@@ -30,6 +34,36 @@ require_command() {
         echo "Erro: comando '$1' não encontrado." >&2
         exit 1
     }
+}
+
+require_dotnet_sdk() {
+    require_command dotnet
+    local sdk_version sdk_major
+    sdk_version="$(dotnet --version)"
+    sdk_major="${sdk_version%%.*}"
+    if [[ ! "$sdk_major" =~ ^[0-9]+$ ]] || (( sdk_major < 10 )); then
+        echo "Erro: o SDK ativo e '$sdk_version'; os projetos exigem .NET SDK 10 ou superior." >&2
+        exit 1
+    fi
+}
+
+validate_run_configuration() {
+    require_dotnet_sdk
+    if [[ -z "${RESEND_API_KEY:-}" || -z "${PROMOTIONS_FROM_EMAIL:-}" ]]; then
+        echo "Erro: configure RESEND_API_KEY e PROMOTIONS_FROM_EMAIL antes de iniciar os servicos." >&2
+        exit 1
+    fi
+
+    local key
+    for key in \
+        "$PROMOTIONS_DIR/consumer-promotions/Keys/public_key.pem" \
+        "$PROMOTIONS_DIR/consumer-promotions/Keys/orders_public_key.pem"; do
+        if [[ ! -f "$key" ]]; then
+            echo "Erro: chave publica ausente em '$key'. Execute ./run.sh --setup." >&2
+            exit 1
+        fi
+    done
+    export RESEND_API_KEY PROMOTIONS_FROM_EMAIL
 }
 
 setup_keys() {
@@ -113,7 +147,7 @@ setup_rabbitmq() {
 }
 
 build_projects() {
-    require_command dotnet
+    require_dotnet_sdk
     local projects=(
         "$APP_DIR/orders/orders.csproj"
         "$APP_DIR/stock/stock.csproj"
@@ -150,6 +184,7 @@ terminal_command() {
 }
 
 run_services() {
+    validate_run_configuration
     terminal_command "Estoque" "cd '$APP_DIR/stock' && dotnet run --project stock.csproj"
     terminal_command "Mock de Pagamento" "cd '$ROOT_DIR/payment-mock' && dotnet run --project payment-mock.csproj"
     terminal_command "Pagamento" "cd '$APP_DIR/payment' && dotnet run --project payment.csproj"
@@ -165,11 +200,13 @@ case "${1:-}" in
     --setup) mode="setup" ;;
     --build) mode="build" ;;
     --run) mode="run" ;;
-    --help|-h) usage; exit 0 ;;
+    --help|-h) mode="help"; usage ;;
     *) echo "Opção desconhecida: $1" >&2; usage >&2; exit 2 ;;
 esac
 
 case "$mode" in
+    help)
+        ;;
     setup)
         setup_keys
         setup_rabbitmq

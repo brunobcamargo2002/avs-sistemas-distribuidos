@@ -4,7 +4,7 @@ namespace orders.Security;
 
 /// <summary>
 /// Carrega a chave privada do orders (para assinar pedido.criado / pedido.excluido)
-/// e a chave pública do stock (para verificar pedido.estoque_ok / pedido.indisponivel).
+/// e a chave pública do stock (para verificar pedido.estoque_ok / estoque.indisponivel).
 /// As chaves devem existir previamente; se não existirem, a aplicação não deve iniciar.
 /// </summary>
 public static class KeyManager
