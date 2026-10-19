@@ -23,6 +23,8 @@ TestResults/
 # Dados locais de interesses
 promotion-interests.json
 promotion-interests.json.*.tmp
+promotion-deliveries.json
+promotion-deliveries.json.*.tmp
 
 # Variáveis de ambiente / segredos
 .env

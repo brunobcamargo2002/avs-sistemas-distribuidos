@@ -90,3 +90,24 @@ dotnet run --project avaliacao-2/application/orders/orders.csproj
 5. O `payment` publica `pagamento.aprovado` ou `pagamento.recusado` com os dados da notificação (inclusive o valor).
 
 O fluxo aprovado termina em `Enviado`; uma recusa exclui o pedido e publica `pedido.excluido` para devolver a reserva. O link e o status ficam no `orders.json` (visão do lojista) e em `payment-mock/charges.json` (visão do provedor, criado na primeira execução).
+
+## Promocoes por e-mail
+
+O Gateway recebe `POST /api/promotion-interests` com `email` e `categories`, e `DELETE /api/promotion-interests` com `email`. Publica os eventos assinados `interesse.promocao` e `interesse.promocao.cancelado` na fila duravel `fila.interesses.promocao`.
+
+O `consumer-promotions` persiste os interesses, consome as ofertas do publicador pela fila `fila.promocoes` e envia uma mensagem individual a cada destinatario interessado usando `POST https://api.resend.com/emails`. Categorias abrangem suas subcategorias: `hardware` inclui `hardware.placa_de_video`. O cancelamento remove todas as inscricoes daquele e-mail; uma requisicao de envio ja iniciada nao pode ser desfeita.
+
+Configure no ambiente do consumidor, antes de inicia-lo:
+
+| Variavel | Uso |
+| --- | --- |
+| `RESEND_API_KEY` | Chave da API do Resend; obrigatoria, nunca versionar. |
+| `PROMOTIONS_FROM_EMAIL` | Remetente autorizado pelo Resend, como `Loja <ofertas@seu-dominio.com>`; obrigatorio. |
+| `PROMOTION_INTERESTS_PATH` | Arquivo de interesses; padrao `promotion-interests.json`. |
+| `PROMOTION_DELIVERIES_PATH` | Historico dos envios aceitos; padrao `promotion-deliveries.json`. |
+
+Para enviar a clientes reais, configure um dominio verificado e o remetente no Resend. O remetente de testes do provedor possui restricoes de destinatarios. Criar uma conta e configurar a credencial nao e feito automaticamente pelo projeto. O consumidor tambem precisa de `Keys/public_key.pem` do publicador e `Keys/orders_public_key.pem` do Gateway; `./run.sh --setup` copia essas chaves.
+
+O historico local evita repetir envios aceitos apos reinicios. Cada envio tambem usa uma chave de idempotencia por promocao e destinatario no Resend, valida por 24 horas, protegendo novas tentativas se o provedor aceitou a mensagem antes de uma falha local. Nao apague o historico durante reprocessamentos. A confirmacao da API significa aceite pelo provedor, nao entrega garantida na caixa de entrada.
+
+Falhas temporarias de rede, timeout, limite de requisicoes e erros HTTP 5xx reenfileiram a promocao com pausa de cinco segundos. Os destinatarios ja atendidos sao ignorados na nova tentativa e os interesses sao conferidos novamente antes de cada envio. Rejeicoes permanentes, como HTTP 401, 403 e 422, preservam o evento assinado em `fila.promocoes.falhas`, com a routing key original e o status HTTP nos headers. Corrija a configuracao ou os dados antes de republicar o evento na exchange `promotions` usando sua routing key original. Nao ha reprocessamento automatico dessa fila.

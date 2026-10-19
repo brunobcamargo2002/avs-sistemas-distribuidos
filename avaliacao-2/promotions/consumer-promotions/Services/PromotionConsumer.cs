@@ -12,6 +12,7 @@ public class PromotionConsumer
 {
     private const string ExchangeName = "promotions";
     private const string QueueName = "fila.promocoes";
+    private const string FailedQueueName = "fila.promocoes.falhas";
     private const string InterestExchangeName = "ecommerce";
     private const string InterestQueueName = "fila.interesses.promocao";
     private const string InterestRoutingKey = "interesse.promocao";
@@ -23,27 +24,33 @@ public class PromotionConsumer
     private readonly RSA _publicKey;
     private readonly RSA _ordersPublicKey;
     private readonly PromotionInterestRepository _interests;
+    private readonly PromotionEmailSender _emailSender;
 
     private PromotionConsumer(IChannel channel, IChannel interestChannel, RSA publicKey, RSA ordersPublicKey,
-        PromotionInterestRepository interests)
+        PromotionInterestRepository interests, PromotionEmailSender emailSender)
     {
         _channel = channel;
         _interestChannel = interestChannel;
         _publicKey = publicKey;
         _ordersPublicKey = ordersPublicKey;
         _interests = interests;
+        _emailSender = emailSender;
     }
 
-    public static async Task<PromotionConsumer> CreateAsync(ConnectionFactory factory, PromotionInterestRepository interests)
+    public static async Task<PromotionConsumer> CreateAsync(ConnectionFactory factory, PromotionInterestRepository interests,
+        PromotionEmailSender emailSender)
     {
         var publicKey = KeyManager.LoadPublicKey();
         var ordersPublicKey = KeyManager.LoadOrdersPublicKey();
         var connection = await factory.CreateConnectionAsync();
-        var channel = await connection.CreateChannelAsync();
+        var channel = await connection.CreateChannelAsync(
+            new CreateChannelOptions(publisherConfirmationsEnabled: true, publisherConfirmationTrackingEnabled: true));
         await channel.ExchangeDeclareAsync(exchange: ExchangeName, type: ExchangeType.Topic);
         await channel.QueueDeclareAsync(QueueName, true, false, false,
             new Dictionary<string, object?> { ["x-queue-type"] = "quorum" });
         await channel.QueueBindAsync(QueueName, ExchangeName, "promocao.categoria.#");
+        await channel.QueueDeclareAsync(FailedQueueName, true, false, false,
+            new Dictionary<string, object?> { ["x-queue-type"] = "quorum" });
         await channel.BasicQosAsync(0, 1, false);
 
         var interestChannel = await connection.CreateChannelAsync();
@@ -54,7 +61,7 @@ public class PromotionConsumer
         await interestChannel.QueueBindAsync(InterestQueueName, InterestExchangeName, InterestCancelledRoutingKey);
         await interestChannel.BasicQosAsync(0, 1, false);
 
-        return new PromotionConsumer(channel, interestChannel, publicKey, ordersPublicKey, interests);
+        return new PromotionConsumer(channel, interestChannel, publicKey, ordersPublicKey, interests, emailSender);
     }
 
     public async Task StartConsumingAsync()
@@ -133,7 +140,15 @@ public class PromotionConsumer
             Console.WriteLine($" [x] '{ea.RoutingKey}' -> {promotion.ProductName}: {recipients.Count} interested recipients.");
             foreach (var email in recipients)
             {
-                Console.WriteLine($"     Selected recipient (email delivery not configured): {email}");
+                if (!_interests.FindRecipients(promotion.Category).Contains(email, StringComparer.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var sent = await _emailSender.SendAsync(promotion, email);
+                Console.WriteLine(sent
+                    ? $" [x] Promotion {promotion.Id} accepted by the email provider."
+                    : $" [x] Promotion {promotion.Id}: previously sent email skipped.");
             }
 
             await _channel.BasicAckAsync(deliveryTag: ea.DeliveryTag, multiple: false);
@@ -143,9 +158,36 @@ public class PromotionConsumer
             Console.WriteLine(" [!] Invalid promotion or interests JSON.");
             await _channel.BasicNackAsync(ea.DeliveryTag, false, false);
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (HttpRequestException exception) when (exception.StatusCode is { } status &&
+            (int)status < 500 && (int)status is not (408 or 409 or 429))
         {
-            Console.WriteLine($" [!] Interests could not be read: {exception.Message}");
+            try
+            {
+                await _channel.BasicPublishAsync(
+                    exchange: "", routingKey: FailedQueueName, mandatory: true,
+                    basicProperties: new BasicProperties
+                    {
+                        Persistent = true,
+                        Headers = new Dictionary<string, object?>
+                        {
+                            ["signature"] = ea.BasicProperties.Headers!["signature"],
+                            ["original-routing-key"] = ea.RoutingKey,
+                            ["email-provider-status"] = (int)exception.StatusCode.Value
+                        }
+                    }, body: body);
+                await _channel.BasicAckAsync(ea.DeliveryTag, false);
+                Console.WriteLine($" [!] Email provider rejected promotion (HTTP {(int)exception.StatusCode.Value}); retained in {FailedQueueName}.");
+            }
+            catch (Exception publishException) when (publishException is RabbitMQ.Client.Exceptions.RabbitMQClientException or IOException)
+            {
+                Console.WriteLine(" [!] Failed to retain promotion in the failure queue; requeuing original message.");
+                await _channel.BasicNackAsync(ea.DeliveryTag, false, true);
+            }
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or IOException or UnauthorizedAccessException)
+        {
+            Console.WriteLine($" [!] Email processing failed ({exception.GetType().Name}); retrying promotion.");
+            await Task.Delay(TimeSpan.FromSeconds(5));
             await _channel.BasicNackAsync(ea.DeliveryTag, false, true);
         }
     }
