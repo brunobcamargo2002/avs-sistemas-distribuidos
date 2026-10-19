@@ -20,6 +20,9 @@ public class OrderService
     private const string PaymentApprovedRoutingKey = "pagamento.aprovado";
     private const string PaymentRejectedRoutingKey = "pagamento.recusado";
     private const string OrderShippedRoutingKey = "pedido.enviado";
+    private const string PromotionInterestRoutingKey = "interesse.promocao";
+    private const string PromotionInterestCancelledRoutingKey = "interesse.promocao.cancelado";
+    private const string PromotionInterestQueueName = "fila.interesses.promocao";
 
     // Labels dos eventos SSE: dizem o que mudou, sem carregar o pedido.
     private const string StockConfirmedLabel = "estoque-confirmado";
@@ -31,6 +34,7 @@ public class OrderService
 
     private static readonly JsonSerializerOptions ReadOptions = new() { PropertyNameCaseInsensitive = true };
 
+    private readonly IConnection _connection;
     private readonly IChannel _channel;
     private readonly RSA _signingKey;
     private readonly RSA _stockPublicKey;
@@ -38,8 +42,9 @@ public class OrderService
     private readonly RSA _deliveryPublicKey;
     private readonly OrderNotifier _notifier;
 
-    private OrderService(IChannel channel, RSA signingKey, RSA stockPublicKey, RSA paymentPublicKey, RSA deliveryPublicKey, OrderNotifier notifier)
+    private OrderService(IConnection connection, IChannel channel, RSA signingKey, RSA stockPublicKey, RSA paymentPublicKey, RSA deliveryPublicKey, OrderNotifier notifier)
     {
+        _connection = connection;
         _channel = channel;
         _signingKey = signingKey;
         _stockPublicKey = stockPublicKey;
@@ -69,12 +74,18 @@ public class OrderService
         await channel.QueueBindAsync(queue: QueueName, exchange: ExchangeName, routingKey: PaymentRejectedRoutingKey);
         await channel.QueueBindAsync(queue: QueueName, exchange: ExchangeName, routingKey: OrderShippedRoutingKey);
 
+        await channel.QueueDeclareAsync(
+            queue: PromotionInterestQueueName, durable: true, exclusive: false, autoDelete: false,
+            arguments: new Dictionary<string, object?> { ["x-queue-type"] = "quorum" });
+        await channel.QueueBindAsync(PromotionInterestQueueName, ExchangeName, PromotionInterestRoutingKey);
+        await channel.QueueBindAsync(PromotionInterestQueueName, ExchangeName, PromotionInterestCancelledRoutingKey);
+
         var signingKey = KeyManager.LoadPrivateKey();
         var stockPublicKey = KeyManager.LoadStockPublicKey();
         var paymentPublicKey = KeyManager.LoadPaymentPublicKey();
         var deliveryPublicKey = KeyManager.LoadDeliveryPublicKey();
 
-        return new OrderService(channel, signingKey, stockPublicKey, paymentPublicKey, deliveryPublicKey, notifier);
+        return new OrderService(connection, channel, signingKey, stockPublicKey, paymentPublicKey, deliveryPublicKey, notifier);
     }
 
     public async Task StartConsumingAsync()
@@ -106,6 +117,31 @@ public class OrderService
     {
         OrderRepository.Remove(order.OrderId);
         await PublishSignedAsync(OrderDeletedRoutingKey, order);
+    }
+
+    public async Task PublishPromotionInterestAsync(string email, IReadOnlyList<string> categories, bool cancel,
+        CancellationToken cancellationToken)
+    {
+        await using var channel = await _connection.CreateChannelAsync(
+            new CreateChannelOptions(publisherConfirmationsEnabled: true, publisherConfirmationTrackingEnabled: true),
+            cancellationToken);
+        var interest = new PromotionInterestEvent(Guid.NewGuid(), email, categories, DateTimeOffset.UtcNow);
+        var body = JsonSerializer.SerializeToUtf8Bytes(interest);
+        var signature = _signingKey.SignData(body, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+
+        await channel.BasicPublishAsync(
+            exchange: ExchangeName,
+            routingKey: cancel ? PromotionInterestCancelledRoutingKey : PromotionInterestRoutingKey,
+            mandatory: true,
+            basicProperties: new BasicProperties
+            {
+                Persistent = true,
+                MessageId = interest.EventId.ToString(),
+                ContentType = "application/json",
+                Headers = new Dictionary<string, object?> { ["signature"] = signature }
+            },
+            body: body,
+            cancellationToken: cancellationToken);
     }
 
     private async Task OnMessageReceivedAsync(object sender, BasicDeliverEventArgs ea)

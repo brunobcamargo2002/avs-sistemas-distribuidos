@@ -30,5 +30,6 @@ app.UseCors();
 
 app.MapProductEndpoints();
 app.MapOrderEndpoints(orderService, notifier);
+app.MapPromotionInterestEndpoints(orderService);
 
 await app.RunAsync();
