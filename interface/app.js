@@ -31,6 +31,13 @@ const elements = {
   submitOrder: document.querySelector("#submit-order"),
   orderFeedback: document.querySelector("#order-feedback"),
   ordersList: document.querySelector("#orders-list"),
+  promotionForm: document.querySelector("#promotion-form"),
+  promotionEmail: document.querySelector("#promotion-email"),
+  promotionCategories: document.querySelector("#promotion-categories"),
+  promotionOptions: document.querySelector("#promotion-category-options"),
+  savePromotion: document.querySelector("#save-promotion-interest"),
+  cancelPromotion: document.querySelector("#cancel-promotion-interest"),
+  promotionFeedback: document.querySelector("#promotion-feedback"),
 };
 
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -54,6 +61,81 @@ function categoryLabel(category) {
   if (!detail) return categoryNames[group] ?? group;
   return `${categoryNames[group] ?? group} · ${detail.replaceAll("_", " ")}`;
 }
+
+function renderPromotionCategories() {
+  const selected = new Set([...elements.promotionOptions.querySelectorAll("input:checked")].map((input) => input.value));
+  const categories = state.products.length
+    ? [...new Set(state.products.map((product) => product.category))].sort()
+    : Object.keys(categoryNames);
+  elements.promotionOptions.innerHTML = categories.map((category) => `
+    <label class="promotion-option">
+      <input type="checkbox" name="categories" value="${escapeHtml(category)}" ${selected.has(category) ? "checked" : ""} />
+      <span>${escapeHtml(categoryLabel(category))}</span>
+    </label>`).join("");
+}
+
+async function submitPromotionInterest(cancel) {
+  if (elements.promotionForm.getAttribute("aria-busy") === "true") return;
+  if (!elements.promotionEmail.reportValidity()) return;
+  const categories = [...elements.promotionOptions.querySelectorAll("input:checked")].map((input) => input.value);
+  elements.promotionFeedback.classList.remove("error");
+  if (!cancel && !categories.length) {
+    elements.promotionFeedback.textContent = "Selecione ao menos uma categoria.";
+    elements.promotionFeedback.classList.add("error");
+    elements.promotionOptions.querySelector("input")?.focus();
+    return;
+  }
+
+  const email = elements.promotionEmail.value.trim();
+  elements.promotionForm.setAttribute("aria-busy", "true");
+  elements.savePromotion.disabled = true;
+  elements.cancelPromotion.disabled = true;
+  elements.promotionEmail.disabled = true;
+  elements.promotionCategories.disabled = true;
+  elements.promotionFeedback.textContent = cancel ? "Cancelando inscrições..." : "Cadastrando interesses...";
+
+  try {
+    const response = await fetch(`${API_BASE}/api/promotion-interests`, {
+      method: cancel ? "DELETE" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cancel ? { email } : { email, categories }),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!response.ok) {
+      if ([404, 405, 501].includes(response.status)) {
+        throw new Error("Serviço de interesses ainda indisponível. Nenhuma alteração foi confirmada.");
+      }
+      const result = await response.json().catch(() => ({}));
+      throw new Error(result.detail ?? result.message ?? "Não foi possível concluir a solicitação.");
+    }
+    elements.promotionFeedback.textContent = cancel
+      ? `Cancelamento solicitado para ${email}.`
+      : `Cadastro solicitado para ${email}.`;
+    if (cancel) {
+      elements.promotionOptions.querySelectorAll("input").forEach((input) => { input.checked = false; });
+    }
+  } catch (error) {
+    elements.promotionFeedback.textContent = error instanceof TypeError
+      ? "Não foi possível acessar o serviço. Tente novamente mais tarde."
+      : error.name === "TimeoutError"
+        ? "O serviço demorou para responder. Não foi possível confirmar a solicitação."
+        : error.message;
+    elements.promotionFeedback.classList.add("error");
+  } finally {
+    elements.promotionForm.removeAttribute("aria-busy");
+    elements.savePromotion.disabled = false;
+    elements.cancelPromotion.disabled = false;
+    elements.promotionEmail.disabled = false;
+    elements.promotionCategories.disabled = false;
+  }
+}
+
+elements.promotionForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  submitPromotionInterest(false);
+});
+elements.cancelPromotion.addEventListener("click", () => submitPromotionInterest(true));
+renderPromotionCategories();
 
 function filteredProducts() {
   const query = state.search.trim().toLocaleLowerCase("pt-BR");
@@ -208,6 +290,7 @@ async function loadProducts() {
     const response = await fetch(`${API_BASE}/api/products`);
     if (!response.ok) throw new Error("Não foi possível consultar o estoque.");
     state.products = await response.json();
+    renderPromotionCategories();
     renderFilters();
     renderProducts();
     renderCart();
@@ -375,6 +458,14 @@ function connectStream(customerId) {
       console.log(`[SSE] ${label}`, { orderId, paymentUrl, releasedItems });
 
       if (rule.removed) {
+        elements.orderFeedback.textContent = rule.restoresStock
+          ? "Pagamento recusado. O pedido foi cancelado e os produtos retornam ao estoque."
+          : "Sem estoque para os itens selecionados. O pedido foi cancelado.";
+        elements.orderFeedback.classList.add("error");
+        if (orderId === state.awaitingPaymentFor) {
+          closePaymentTab();
+          state.awaitingPaymentFor = null;
+        }
         removeOrderRow(orderId);
         if (rule.restoresStock) restoreStock(releasedItems);
         return;

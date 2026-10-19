@@ -158,6 +158,22 @@ h2 { margin-bottom: 0; font: 600 25px/1.1 var(--display); letter-spacing: 0; }
 .status-pill.pending { color: #8a5a00; background: #fdf1dc; }
 .payment-link { display: inline-block; margin: 8px 0 0; padding: 5px 10px; border-radius: 2px; background: #46694d; color: #fff; font-size: 9px; font-weight: 700; text-decoration: none; }
 .payment-link:hover { background: #395541; }
+.promotion-section { max-width: 1440px; margin: 0 auto; padding: 28px clamp(20px, 5vw, 76px) 48px; display: grid; grid-template-columns: minmax(180px, 1fr) minmax(0, 2fr); gap: 28px; border-top: 1px solid var(--line); }
+.promotion-form { min-width: 0; display: grid; gap: 20px; }
+.promotion-email { display: grid; gap: 8px; font-weight: 600; }
+.promotion-email input { width: 100%; min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 4px; color: var(--ink); background: var(--surface); }
+.promotion-categories { min-width: 0; margin: 0; padding: 0; border: 0; }
+.promotion-categories legend { padding: 0; margin-bottom: 12px; font-weight: 600; }
+.promotion-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; }
+.promotion-option { min-width: 0; display: flex; align-items: flex-start; gap: 8px; overflow-wrap: anywhere; cursor: pointer; }
+.promotion-option input { flex: 0 0 auto; accent-color: var(--forest); }
+.promotion-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+.promotion-actions .primary-button { width: auto; min-height: 44px; padding: 12px 18px; }
+.cancel-promotion-button { min-height: 44px; padding: 8px 0; border: 0; background: transparent; color: #984c35; text-align: left; text-decoration: underline; cursor: pointer; overflow-wrap: anywhere; }
+.cancel-promotion-button:disabled { color: var(--muted); cursor: not-allowed; }
+.promotion-feedback { margin: 0; color: #456b43; line-height: 1.5; overflow-wrap: anywhere; }
+.promotion-feedback.error { color: #a44e36; }
+.promotion-section :focus-visible { outline: 2px solid var(--forest); outline-offset: 3px; }
 .site-footer { min-height: 72px; padding: 14px clamp(20px, 5vw, 76px); display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid #dedfd5; color: #7d847b; font-size: 8px; letter-spacing: 1px; }
 .brand-footer { color: var(--forest); font-size: 16px; letter-spacing: 0; }
 .brand-footer .brand-mark { width: 23px; height: 23px; font-size: 14px; }
@@ -187,6 +203,8 @@ h2 { margin-bottom: 0; font: 600 25px/1.1 var(--display); letter-spacing: 0; }
   .side-column { grid-row: auto; }
   .cart-panel { order: 0; }
   .orders-panel { order: 1; }
+  .promotion-section { padding: 28px 18px 36px; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  .promotion-options { grid-template-columns: minmax(0, 1fr); }
   .site-footer { flex-wrap: wrap; }
   .site-footer > span:last-child { display: none; }
 }

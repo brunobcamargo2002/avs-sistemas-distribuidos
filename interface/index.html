@@ -96,6 +96,27 @@
           </section>
         </aside>
       </section>
+      <section class="promotion-section" aria-labelledby="promotion-title">
+        <div class="promotion-heading">
+          <p class="eyebrow">OFERTAS POR E-MAIL</p>
+          <h2 id="promotion-title">Seus interesses</h2>
+        </div>
+        <form id="promotion-form" class="promotion-form">
+          <label class="promotion-email" for="promotion-email">
+            <span>E-mail</span>
+            <input id="promotion-email" name="email" type="email" autocomplete="email" maxlength="254" placeholder="voce@exemplo.com" required />
+          </label>
+          <fieldset id="promotion-categories" class="promotion-categories">
+            <legend>Categorias de interesse</legend>
+            <div id="promotion-category-options" class="promotion-options"></div>
+          </fieldset>
+          <div class="promotion-actions">
+            <button id="save-promotion-interest" class="primary-button" type="submit">Cadastrar interesses</button>
+            <button id="cancel-promotion-interest" class="cancel-promotion-button" type="button">Cancelar todas as inscrições deste e-mail</button>
+          </div>
+          <p id="promotion-feedback" class="promotion-feedback" role="status" aria-live="polite"></p>
+        </form>
+      </section>
     </main>
 
     <footer class="site-footer"><a class="brand brand-footer" href="#inicio"><span class="brand-mark" aria-hidden="true">e.</span><span>estação<span class="brand-period">.</span></span></a><span>CURITIBA · PR</span><span>TECNOLOGIA EM BOA COMPANHIA</span></footer>
