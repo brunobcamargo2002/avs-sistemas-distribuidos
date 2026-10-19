@@ -10,17 +10,21 @@ namespace consumer_promotions.Security;
 public static class KeyManager
 {
     private const string PublicKeyPath = "Keys/public_key.pem";
+    private const string OrdersPublicKeyPath = "Keys/orders_public_key.pem";
 
-    public static RSA LoadPublicKey()
+    public static RSA LoadPublicKey() => Load(PublicKeyPath);
+
+    public static RSA LoadOrdersPublicKey() => Load(OrdersPublicKeyPath);
+
+    private static RSA Load(string path)
     {
-        if (!File.Exists(PublicKeyPath))
+        if (!File.Exists(path))
         {
-            throw new FileNotFoundException(
-                $"Chave pública não encontrada em '{PublicKeyPath}'. Copie a chave pública do publisher antes de iniciar o consumer.");
+            throw new FileNotFoundException($"Public key not found: '{path}'.", path);
         }
 
         var rsa = RSA.Create();
-        rsa.ImportFromPem(File.ReadAllText(PublicKeyPath));
+        rsa.ImportFromPem(File.ReadAllText(path));
         return rsa;
     }
 }

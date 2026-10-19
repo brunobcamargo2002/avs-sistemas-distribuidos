@@ -67,6 +67,7 @@ setup_keys() {
     fi
     openssl rsa -in "$promotions_private" -pubout -out "$promotions_public" >/dev/null 2>&1
     cp "$promotions_public" "$PROMOTIONS_DIR/consumer-promotions/Keys/public_key.pem"
+    cp "$APP_DIR/orders/Keys/public_key.pem" "$PROMOTIONS_DIR/consumer-promotions/Keys/orders_public_key.pem"
 }
 
 setup_rabbitmq() {

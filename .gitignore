@@ -20,6 +20,10 @@ TestResults/
 # Logs
 *.log
 
+# Dados locais de interesses
+promotion-interests.json
+promotion-interests.json.*.tmp
+
 # Variáveis de ambiente / segredos
 .env
 .env.*
