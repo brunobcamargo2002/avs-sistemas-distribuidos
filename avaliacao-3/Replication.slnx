@@ -1,5 +1,7 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Replication.Client/Replication.Client.csproj" />
+    <Project Path="src/Replication.Contracts/Replication.Contracts.csproj" />
     <Project Path="src/Replication.Node/Replication.Node.csproj" />
   </Folder>
   <Folder Name="/tests/">
