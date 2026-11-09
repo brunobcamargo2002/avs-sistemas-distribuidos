@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Replication.Node/Replication.Node.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Replication.Tests/Replication.Tests.csproj" />
+  </Folder>
+</Solution>

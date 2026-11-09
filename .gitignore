@@ -17,6 +17,9 @@ packages/
 TestResults/
 *.trx
 
+# Estado local da avaliacao 3
+avaliacao-3/**/data/
+avaliacao-3/tests/**
 # Logs
 *.log
 
