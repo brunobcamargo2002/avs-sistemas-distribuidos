@@ -123,6 +123,14 @@ while (!cancellation.IsCancellationRequested)
                     deadline: DateTime.UtcNow.AddSeconds(timeoutSeconds),
                     cancellationToken: cancellation.Token);
                 Console.WriteLine($"No: {log.NodeId}; papel: {log.Role}");
+                if (log.Role == "lider fixo")
+                {
+                    Console.WriteLine($"Quorum: {(log.HasQuorum ? "disponivel" : "indisponivel")}; ativos={log.ActiveNodes}/4; minimo={log.QuorumSize}");
+                    foreach (var replica in log.Replicas)
+                    {
+                        Console.WriteLine($"Replica {replica.NodeId}: {(replica.Active ? "ativa" : "inativa")}; confirmado={replica.MatchIndex}");
+                    }
+                }
                 if (!string.IsNullOrEmpty(log.LeaderAddress))
                 {
                     Console.WriteLine($"Lider fixo: {log.LeaderAddress}");
@@ -152,7 +160,7 @@ while (!cancellation.IsCancellationRequested)
         var message = exception.StatusCode switch
         {
             StatusCode.NotFound => "Chave nao encontrada.",
-            StatusCode.Unavailable => "Servidor indisponivel. Confira o endereco e se ele esta em execucao.",
+            StatusCode.Unavailable => $"Servidor indisponivel ou sem quorum: {exception.Status.Detail}",
             StatusCode.DeadlineExceeded => "Tempo limite da chamada excedido.",
             StatusCode.Cancelled => "Chamada cancelada.",
             _ => $"Falha gRPC ({exception.StatusCode}): {exception.Status.Detail}"

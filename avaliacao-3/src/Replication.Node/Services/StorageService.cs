@@ -6,10 +6,10 @@ using Replication.Node.Replication;
 namespace Replication.Node.Services;
 
 public sealed class StorageService(
-    JsonKeyValueStore store, FixedNodeOptions options, ILogger<StorageService> logger)
+    JsonKeyValueStore store, FixedNodeOptions options, QuorumCoordinator quorum, ILogger<StorageService> logger)
     : Contracts.Storage.StorageBase
 {
-    public override Task<WriteResponse> Write(WriteRequest request, ServerCallContext context)
+    public override async Task<WriteResponse> Write(WriteRequest request, ServerCallContext context)
     {
         ValidateKey(request.Key);
         context.CancellationToken.ThrowIfCancellationRequested();
@@ -22,16 +22,16 @@ public sealed class StorageService(
 
         try
         {
-            var logIndex = store.Put(request.Key, request.Value);
+            var logIndex = await quorum.WriteAsync(request.Key, request.Value, context.CancellationToken);
             var status = store.GetStatus();
             logger.LogInformation("No {Node}: lider fixo; termo=0; log={Index}; commit={Commit}; aplicado={Applied}.",
                 options.NodeId, status.LastLogIndex, status.CommitIndex, status.LastApplied);
-            return Task.FromResult(new WriteResponse
+            return new WriteResponse
             {
                 LogIndex = logIndex,
                 CommitIndex = status.CommitIndex,
                 LastApplied = status.LastApplied
-            });
+            };
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
@@ -67,6 +67,7 @@ public sealed class StorageService(
         context.CancellationToken.ThrowIfCancellationRequested();
         var snapshot = store.GetLogSnapshot();
         var status = snapshot.Status;
+        var quorumStatus = quorum.GetStatus();
         var response = new GetLogResponse
         {
             LastLogIndex = status.LastLogIndex,
@@ -74,8 +75,18 @@ public sealed class StorageService(
             LastApplied = status.LastApplied,
             NodeId = options.NodeId,
             Role = options.IsLeader ? "lider fixo" : "seguidor",
-            LeaderAddress = options.LeaderAddress ?? ""
+            LeaderAddress = options.LeaderAddress ?? "",
+            QuorumSize = FixedNodeOptions.Quorum,
+            ActiveNodes = options.IsLeader ? quorumStatus.ActiveNodes : 0,
+            HasQuorum = options.IsLeader && quorumStatus.HasQuorum
         };
+        if (options.IsLeader)
+        {
+            response.Replicas.AddRange(quorumStatus.Replicas.Select(replica => new ReplicaProgress
+            {
+                NodeId = replica.NodeId, Active = replica.Active, MatchIndex = replica.MatchIndex
+            }));
+        }
         response.Entries.AddRange(snapshot.Entries.Select(entry => new LogEntry
         {
             Index = entry.Index,

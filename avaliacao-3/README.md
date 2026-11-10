@@ -1,19 +1,22 @@
 # Avaliacao 3 - Replicacao de dados
 
-## Etapa 4: lider fixo e replicacao Pull
+## Etapa 5: quorum e confirmacao ao cliente
 
 Aplicacao .NET 10 com quatro instancias do mesmo servidor gRPC e um cliente.
 Um lider fixo recebe escritas; os seguidores buscam o log via `Fetch` e mantem
 seus proprios arquivos JSON. O log continua separado dos dados comitados.
 
-**Etapa intermediaria:** o lider ainda comita localmente, mesmo sem seguidores.
-Sucesso de escrita NAO significa replicacao em quorum. Nao ha eleicao, deteccao
-de perda de quorum ou truncamento de logs divergentes. Essas regras serao
-introduzidas nos passos seguintes; nao use esta etapa como consenso tolerante a falhas.
+O lider exige **quorum fixo de tres nos (ele mesmo e dois seguidores)** antes
+de comitar uma escrita e responder sucesso ao cliente. Atividade e confirmacao
+de armazenamento sao acompanhadas separadamente. Nao ha ainda eleicao ou
+truncamento de logs divergentes; nao troque a lideranca por configuracao.
 
 ### Executar
 
 Requer SDK .NET 10. Na raiz do repositorio, compile antes de iniciar os processos:
+Encerre os nos e o cliente da versao anterior antes de compilar; no Windows,
+os executaveis abertos podem bloquear a substituicao das DLLs. Reinicie todos
+com a mesma versao, sem misturar etapas.
 
 ```powershell
 dotnet build avaliacao-3\Replication.slnx
@@ -46,9 +49,13 @@ dotnet run --no-build --project avaliacao-3\src\Replication.Client -- --server h
 
 O endereco padrao do cliente e `http://127.0.0.1:7001`, e a porta padrao do
 servidor e `7001`. Sem configuracao, o no continua sendo lider fixo `node-1`,
-preservando a execucao de no unico das etapas anteriores.
+mas nao confirma escritas sozinho: sao necessarios dois seguidores ativos.
 Cada seguidor exige `--node-id` exclusivo, `--role follower` e `--leader`.
 Cada instancia deve usar porta e arquivo diferentes.
+Os membros fixos sao `node-1,node-2,node-3,node-4`. Para usar outros nomes,
+informe a mesma lista `--members id1,id2,id3,id4` em todos os processos.
+Identidades desconhecidas e repeticoes da mesma identidade nao aumentam o quorum.
+Esta etapa assume nos confiaveis: nao implementa autenticacao de identidades.
 O servidor aceita apenas conexoes locais IPv4, via HTTP/2
 sem TLS (h2c), para desenvolvimento. Nao exponha essa configuracao na Internet.
 O terminal do servidor exibe logs; o menu agora fica somente no cliente:
@@ -56,7 +63,8 @@ O terminal do servidor exibe logs; o menu agora fica somente no cliente:
 - `1`: informar a chave e depois o valor; uma chave existente e atualizada.
 - `2`: consultar uma chave.
 - `3`: listar os dados comitados em ordem de chave.
-- `4`: inspecionar as entradas do log e seus indices/termos/estado de commit.
+- `4`: inspecionar log, commit e, no lider, quorum, nos ativos e indices
+  confirmados por seguidor. O seguidor nao estima o quorum global.
 - `0`: sair.
 
 As chaves diferenciam maiusculas de minusculas e nao podem ser vazias ou conter
@@ -82,6 +90,41 @@ e exibido na inicializacao. Use o mesmo caminho para recuperar os dados.
 8. Escrita em um seguidor retorna `FailedPrecondition` e indica o endereco do
    lider. O cliente mostra o comando `--server`; nao ha redirecionamento automatico.
 
+### Demonstrar perda e recuperacao de quorum
+
+1. Com os quatro nos ligados, use `4` no cliente conectado ao lider para
+   conferir `quorum disponivel`, e grave um dado com a opcao `1`.
+2. Desligue node-4: com lider, node-2 e node-3, novas escritas ainda funcionam.
+3. Desligue node-3 e aguarde mais de 600ms. Agora so ha dois nos ativos.
+4. Confira `quorum indisponivel`. Uma escrita nova retorna `Unavailable`
+   sem adicionar uma entrada ao log. Leituras comitadas continuam funcionando.
+5. Reinicie node-3 com o mesmo JSON. Apos os Fetchs restabelecerem o quorum,
+   escritas voltam a funcionar. Node-4 pode voltar depois e recuperar seu atraso.
+
+O [QuorumCoordinator](src/Replication.Node/Replication/QuorumCoordinator.cs)
+mantem o ultimo Fetch e o ultimo indice confirmado de cada membro na memoria
+do lider. Mais de 600ms sem Fetch valido torna a replica inativa; um monitor
+verifica isso a cada 100ms, e toda nova escrita tambem consulta o tempo atual.
+Ao reiniciar o lider, as replicas precisam se apresentar novamente: atividade
+antiga nao e recuperada do JSON.
+
+Uma escrita aceita e primeiro persistida no log SEM commit. O indice de commit
+so avanca quando dois seguidores distintos informam indices que incluem essa
+entrada, alem da copia local do lider. Entregar uma resposta Fetch nao e prova
+de armazenamento. O commit e sua aplicacao sao persistidos antes de liberar a
+resposta de sucesso ao cliente. Escritas concorrentes aguardam seus proprios
+indices sem bloquear a chegada de Fetchs.
+
+Sem quorum inicial, a escrita e recusada sem alterar o log. Se o quorum se perder
+durante a espera, a chamada falha; se os nos estiverem ativos mas atrasados,
+o servidor espera no maximo cinco segundos e retorna `DeadlineExceeded`.
+O deadline do cliente pode encerrar a chamada antes. Uma entrada ja persistida
+permanece pendente e pode ser comitada quando as replicas voltarem. Falha ou
+timeout nao significa cancelamento definitivo da operacao: nao ha rollback
+nem repeticao automatica. Confira o log e a chave antes de repetir.
+Falha de persistencia do commit impede sucesso e desabilita novas escritas
+ate a correcao do armazenamento e reinicio do lider.
+
 ### Fluxo Pull
 
 O [PullReplicationWorker](src/Replication.Node/Replication/PullReplicationWorker.cs)
@@ -96,6 +139,9 @@ aviso a cada tentativa. Leituras locais continuam disponiveis.
 4. No proximo Fetch, confirma a posicao que ja esta em disco.
 5. Aplica somente o prefixo confirmado nessa requisicao, limitado pelo commit
    retornado pelo lider. Entradas recem-recebidas aguardam o proximo Fetch.
+
+O lider registra cada posicao confirmada no Fetch e calcula o terceiro maior
+indice entre sua copia local e as replicas ativas; esse e o limite do commit.
 
 O lider nao abre conexoes nem envia dados espontaneamente aos seguidores.
 Nao ha dependencia de RabbitMQ, Docker, Redis ou Kubernetes.
@@ -112,7 +158,7 @@ O [storage.proto](src/Replication.Contracts/Protos/storage.proto) define os RPCs
 | `Write` | Chave e valor | Indice do log e indices de commit/aplicacao, apos persistir e comitar |
 | `Read` | Chave | Valor, ou status `NotFound` |
 | `List` | Requisicao vazia | Entradas ordenadas por chave |
-| `GetLog` | Requisicao vazia | Log e indices atuais, com o estado de commit por entrada |
+| `GetLog` | Requisicao vazia | Log, indices, papel e estado de quorum/progresso das replicas no lider |
 | `ReplicationTransport.Fetch` | Identidade, ultimo indice e termo do seguidor | Lote do log e commit do lider |
 
 O cliente le e lista somente o estado aplicado. `GetLog` e apenas para
@@ -124,8 +170,9 @@ usa `Grpc.Net.Client`. Nao ha REST ou acesso do cliente ao arquivo JSON.
 
 Chaves invalidas sao rejeitadas tambem no servidor com `InvalidArgument`.
 Valor vazio e permitido e nao se confunde com chave inexistente.
-Falhas de persistencia retornam `Internal`, sem confirmar sucesso ou alterar
-os dados em memoria; os detalhes ficam nos logs do servidor.
+Falhas de persistencia retornam `Internal`, sem confirmar sucesso nem aplicar
+entradas cujo commit falhou; os detalhes ficam nos logs do servidor.
+Ausencia de quorum retorna `Unavailable`, com explicacao no cliente.
 
 Cada chamada do cliente tem deadline de cinco segundos, configuravel:
 
@@ -168,9 +215,9 @@ O armazenamento fornece `AppendUncommitted`, que persiste a entrada sem alterar
 `data`, e `CommitThrough`, que aplica em ordem as entradas ate o indice indicado.
 A aplicacao de dados, `commitIndex` e `lastApplied` e salva em uma substituicao
 atomica do JSON. Um erro ao persistir o commit nao torna a entrada visivel. A
-operacao gRPC `Write` usa essas duas operacoes em sequencia e responde sucesso
-somente depois do commit local. No passo 5, a etapa de commit passara a depender
-do quorum, em vez de confirmar imediatamente.
+operacao gRPC `Write` persiste a entrada e aguarda confirmacoes nos Fetchs.
+O coordenador de quorum chama `CommitThrough` apos obter tres copias; a resposta
+de sucesso so e liberada depois de persistir esse commit.
 
 Entradas usam indice sequencial e termo; como eleicao ainda nao foi implementada,
 as escritas atuais usam termo `0`. `GetLog` permite inspecionar o estado do log;
@@ -216,6 +263,9 @@ dotnet build avaliacao-3\Replication.slnx
 dotnet test avaliacao-3\tests\Replication.Tests
 ```
 
+Para validar em Release, acrescente `--configuration Release` aos comandos.
+Ao executar com `--no-build`, use a mesma configuracao usada na compilacao.
+
 Os testes locais cobrem gravacao, recuperacao, migracao do formato anterior,
 entrada nao comitada, commit e aplicacao, validacao, exclusividade, falha de
 persistencia e concorrencia. Os testes gRPC iniciam um servidor real em porta
@@ -227,6 +277,10 @@ Os testes Pull iniciam quatro hosts com portas dinamicas e arquivos separados,
 verificam convergencia, bloqueio de escrita no seguidor, recuperacao do seguidor,
 retomada apos reinicio do lider, lotes, confirmacao de persistencia e isolamento
 de entradas nao comitadas. Tambem validam lotes invalidos e logs divergentes.
+Os testes de quorum verificam confirmacoes distintas, espera da resposta gRPC,
+expiracao de heartbeat com relogio controlado, rejeicao sem adicionar ao log,
+timeout, cancelamento e falha de persistencia. A integracao verifica perda e
+recuperacao do quorum com quatro hosts gRPC e JSONs independentes.
 O [NuGet.Config](NuGet.Config) limita a restauracao desta avaliacao ao nuget.org,
 incluindo os pacotes de teste, sem alterar a configuracao das outras avaliacoes.
 A regra existente em [.gitignore](../.gitignore) ignora `avaliacao-3/tests/**`;
@@ -234,6 +288,6 @@ os testes permanecem locais e essa escolha de versionamento foi preservada.
 
 ### Proxima etapa
 
-Passo 5: acompanhar atividade e indices confirmados por seguidor e exigir
-quorum fixo de tres nos antes de comitar e responder sucesso ao cliente.
-Depois, substituir a lideranca fixa por eleicao e reconciliar divergencias.
+Passo 6: substituir a lideranca fixa por eleicao, com termo persistido, voto
+unico por termo e validacao de atualizacao do log do candidato.
+Depois, reconciliar logs divergentes e completar os cenarios de recuperacao.

@@ -33,6 +33,9 @@ for (var index = 0; index < args.Length; index += 2)
         case "--leader":
             nodeOptions = nodeOptions with { LeaderAddress = args[index + 1] };
             break;
+        case "--members":
+            nodeOptions = nodeOptions with { Members = args[index + 1].Split(',', StringSplitOptions.TrimEntries) };
+            break;
         default:
             return Usage();
     }
@@ -57,7 +60,7 @@ try
         store.EnsureLogBackedState();
     }
 
-    Console.WriteLine("Servidor gRPC - etapa 4 (lider fixo, sem quorum ou eleicao)");
+    Console.WriteLine("Servidor gRPC - etapa 5 (lider fixo, quorum=3/4, sem eleicao)");
     var status = store.GetStatus();
     Console.WriteLine($"No: {nodeOptions.NodeId}; papel: {(nodeOptions.IsLeader ? "lider fixo" : "seguidor")}; termo: 0; commit: {status.CommitIndex}");
     if (!nodeOptions.IsLeader)
@@ -79,6 +82,7 @@ catch (Exception exception) when (exception is IOException or UnauthorizedAccess
 static int Usage()
 {
     Console.Error.WriteLine("Uso: Replication.Node [--data <json>] [--port <1-65535>] "
-        + "[--node-id <id>] [--role leader|follower] [--leader http://127.0.0.1:porta]");
+        + "[--node-id <id>] [--role leader|follower] [--leader http://127.0.0.1:porta] "
+        + "[--members node-1,node-2,node-3,node-4]");
     return 1;
 }

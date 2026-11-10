@@ -75,4 +75,14 @@ message GetLogResponse {
   string node_id = 5;
   string role = 6;
   string leader_address = 7;
+  int32 quorum_size = 8;
+  int32 active_nodes = 9;
+  bool has_quorum = 10;
+  repeated ReplicaProgress replicas = 11;
+}
+
+message ReplicaProgress {
+  string node_id = 1;
+  bool active = 2;
+  int64 match_index = 3;
 }

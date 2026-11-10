@@ -8,6 +8,7 @@ namespace Replication.Node.Services;
 public sealed class ReplicationService(
     JsonKeyValueStore store,
     FixedNodeOptions options,
+    QuorumCoordinator quorum,
     ILogger<ReplicationService> logger) : ReplicationTransport.ReplicationTransportBase
 {
     public override Task<FetchResponse> Fetch(FetchRequest request, ServerCallContext context)
@@ -19,6 +20,7 @@ public sealed class ReplicationService(
         }
 
         if (string.IsNullOrWhiteSpace(request.FollowerId) || request.FollowerId == options.NodeId
+            || !options.Members.Contains(request.FollowerId, StringComparer.Ordinal)
             || request.LastLogIndex < 0 || request.LastLogTerm < 0
             || (request.LastLogIndex == 0 && request.LastLogTerm != 0))
         {
@@ -46,10 +48,20 @@ public sealed class ReplicationService(
 
         logger.LogDebug("Fetch de {Follower}: armazenamento confirmado ate {Index}.",
             request.FollowerId, request.LastLogIndex);
+        try
+        {
+            quorum.Confirm(request.FollowerId, request.LastLogIndex);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            logger.LogError(exception, "Falha ao persistir commit durante Fetch.");
+            throw new RpcException(new Status(StatusCode.Internal, "Nao foi possivel persistir o commit."));
+        }
+
         var response = new FetchResponse
         {
             LeaderId = options.NodeId,
-            LeaderCommit = snapshot.Status.CommitIndex
+            LeaderCommit = store.GetStatus().CommitIndex
         };
         response.Entries.AddRange(snapshot.Entries.Skip((int)request.LastLogIndex).Take(128)
             .Select(entry => new LogEntry

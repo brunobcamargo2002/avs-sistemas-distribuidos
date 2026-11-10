@@ -18,6 +18,12 @@ public static class NodeApplication
         builder.Services.AddGrpc();
         builder.Services.AddSingleton(_ => new JsonKeyValueStore(dataPath));
         builder.Services.AddSingleton(configuration);
+        builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddSingleton<QuorumCoordinator>();
+        if (configuration.IsLeader)
+        {
+            builder.Services.AddHostedService<QuorumMonitor>();
+        }
         if (!configuration.IsLeader)
         {
             builder.Services.AddHostedService<PullReplicationWorker>();
