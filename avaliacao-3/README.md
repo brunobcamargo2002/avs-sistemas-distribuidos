@@ -1,11 +1,11 @@
 # Avaliacao 3 - Replicacao de dados
 
-## Etapa 2: cliente e servidor gRPC com persistencia JSON
+## Etapa 3: log de operacoes e estado comitado
 
 Aplicacao .NET 10 com dois processos: servidor gRPC e cliente de console.
-O armazenamento JSON da etapa 1 foi preservado, inclusive o formato dos dados.
-Ainda nao ha cluster, log de replicacao, quorum ou eleicao: cada gravacao e
-efetivada imediatamente no unico servidor.
+O servidor mantem um log persistido separado dos dados comitados. Nesta etapa
+de no unico, cada escrita gRPC adiciona uma entrada e a comita imediatamente;
+nao ha ainda replicacao, quorum ou eleicao.
 
 ### Executar
 
@@ -28,7 +28,8 @@ O terminal do servidor exibe logs; o menu agora fica somente no cliente:
 
 - `1`: informar a chave e depois o valor; uma chave existente e atualizada.
 - `2`: consultar uma chave.
-- `3`: listar os dados em ordem de chave.
+- `3`: listar os dados comitados em ordem de chave.
+- `4`: inspecionar as entradas do log e seus indices/termos/estado de commit.
 - `0`: sair.
 
 As chaves diferenciam maiusculas de minusculas e nao podem ser vazias ou conter
@@ -50,13 +51,17 @@ e exibido na inicializacao. Use o mesmo caminho para recuperar os dados.
 
 ### Contrato e tratamento de erros
 
-O [storage.proto](src/Replication.Contracts/Protos/storage.proto) define tres RPCs:
+O [storage.proto](src/Replication.Contracts/Protos/storage.proto) define quatro RPCs:
 
 | RPC | Entrada | Resultado |
 | --- | --- | --- |
-| `Write` | Chave e valor | Resposta vazia de sucesso, somente apos persistir |
+| `Write` | Chave e valor | Indice do log e indices de commit/aplicacao, apos persistir e comitar |
 | `Read` | Chave | Valor, ou status `NotFound` |
 | `List` | Requisicao vazia | Entradas ordenadas por chave |
+| `GetLog` | Requisicao vazia | Log e indices atuais, com o estado de commit por entrada |
+
+O cliente le e lista somente o estado aplicado. `GetLog` e apenas para
+inspecao: revela quais entradas estao no log e se ja foram comitadas.
 
 O projeto `Replication.Contracts` gera as mensagens, a base do servidor e o
 cliente gRPC a partir do contrato. O servidor usa ASP.NET Core gRPC; o cliente
@@ -82,11 +87,44 @@ ter persistido o dado. Consulte a chave antes de repetir.
 
 ```json
 {
+  "formatVersion": 2,
+  "commitIndex": 1,
+  "lastApplied": 1,
+  "log": [
+    {
+      "index": 1,
+      "term": 0,
+      "key": "produto:1",
+      "value": "Teclado"
+    }
+  ],
   "data": {
     "produto:1": "Teclado"
   }
 }
 ```
+
+`log` guarda as operacoes persistidas, inclusive as ainda nao comitadas.
+`commitIndex` e o maior indice efetivado; `lastApplied` indica ate onde o estado
+final foi atualizado. `data` contem somente os valores ja aplicados. Uma entrada
+com indice maior que `commitIndex` nao aparece em `Read` nem em `List`.
+
+O armazenamento fornece `AppendUncommitted`, que persiste a entrada sem alterar
+`data`, e `CommitThrough`, que aplica em ordem as entradas ate o indice indicado.
+A aplicacao de dados, `commitIndex` e `lastApplied` e salva em uma substituicao
+atomica do JSON. Um erro ao persistir o commit nao torna a entrada visivel. A
+operacao gRPC `Write` usa essas duas operacoes em sequencia e responde sucesso
+somente depois do commit local. Quando a replicacao for implementada, a etapa de
+commit passara a depender do quorum, em vez de confirmar imediatamente.
+
+Entradas usam indice sequencial e termo; como eleicao ainda nao foi implementada,
+as escritas atuais usam termo `0`. `GetLog` permite inspecionar o estado do log;
+os testes cobrem entrada nao comitada persistida, invisivel apos reinicio, e sua
+aplicacao depois de `CommitThrough`.
+
+O formato anterior, que continha apenas `data`, e carregado preservando os
+valores existentes. Como esse formato nao registrava historico, o log comeca
+vazio apos a migracao, e novas operacoes recebem indices a partir de `1`.
 
 O armazenamento usa `System.Text.Json`, sem banco de dados ou dependencias
 externas de persistencia. A logica fica em
@@ -117,12 +155,13 @@ dotnet build avaliacao-3\Replication.slnx
 dotnet test avaliacao-3\tests\Replication.Tests
 ```
 
-Os testes locais da etapa 1 cobrem gravacao, atualizacao, recuperacao, validacao,
-exclusividade, falha de escrita, arquivo temporario abandonado e concorrencia.
-Os testes gRPC iniciam um servidor real em porta dinamica e verificam os RPCs,
-reinicio com recuperacao, validacao no servidor, falha de persistencia,
-escritas concorrentes e indisponibilidade. Um transporte atrasado de teste
-verifica o deadline sem introduzir atrasos artificiais no servidor de producao.
+Os testes locais cobrem gravacao, recuperacao, migracao do formato anterior,
+entrada nao comitada, commit e aplicacao, validacao, exclusividade, falha de
+persistencia e concorrencia. Os testes gRPC iniciam um servidor real em porta
+dinamica e verificam os RPCs, indices reportados, leitura de somente dados
+comitados, visibilidade do log, reinicio, falhas e indisponibilidade.
+Um transporte atrasado de teste verifica o deadline sem introduzir atrasos
+artificiais no servidor de producao.
 O [NuGet.Config](NuGet.Config) limita a restauracao desta avaliacao ao nuget.org,
 incluindo os pacotes de teste, sem alterar a configuracao das outras avaliacoes.
 A regra existente em [.gitignore](../.gitignore) ignora `avaliacao-3/tests/**`;
@@ -130,5 +169,6 @@ os testes permanecem locais e essa escolha de versionamento foi preservada.
 
 ### Proxima etapa
 
-Separar o log de operacoes dos dados comitados, antes de introduzir replicacao.
-Termo, voto, quorum e eleicao serao implementados gradualmente nas etapas seguintes.
+Introduzir replicacao Pull: seguidores buscam entradas do lider e o lider
+avanca o commit somente apos confirmacoes de quorum. Termo, voto e eleicao
+serao adicionados depois.

@@ -14,7 +14,14 @@ public sealed class StorageService(JsonKeyValueStore store, ILogger<StorageServi
 
         try
         {
-            store.Put(request.Key, request.Value);
+            var logIndex = store.Put(request.Key, request.Value);
+            var status = store.GetStatus();
+            return Task.FromResult(new WriteResponse
+            {
+                LogIndex = logIndex,
+                CommitIndex = status.CommitIndex,
+                LastApplied = status.LastApplied
+            });
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
@@ -22,7 +29,6 @@ public sealed class StorageService(JsonKeyValueStore store, ILogger<StorageServi
             throw new RpcException(new Status(StatusCode.Internal, "Nao foi possivel persistir o dado."));
         }
 
-        return Task.FromResult(new WriteResponse());
     }
 
     public override Task<ReadResponse> Read(ReadRequest request, ServerCallContext context)
@@ -44,6 +50,28 @@ public sealed class StorageService(JsonKeyValueStore store, ILogger<StorageServi
         response.Entries.AddRange(store.GetAll()
             .OrderBy(entry => entry.Key, StringComparer.Ordinal)
             .Select(entry => new Entry { Key = entry.Key, Value = entry.Value }));
+        return Task.FromResult(response);
+    }
+
+    public override Task<GetLogResponse> GetLog(GetLogRequest request, ServerCallContext context)
+    {
+        context.CancellationToken.ThrowIfCancellationRequested();
+        var snapshot = store.GetLogSnapshot();
+        var status = snapshot.Status;
+        var response = new GetLogResponse
+        {
+            LastLogIndex = status.LastLogIndex,
+            CommitIndex = status.CommitIndex,
+            LastApplied = status.LastApplied
+        };
+        response.Entries.AddRange(snapshot.Entries.Select(entry => new LogEntry
+        {
+            Index = entry.Index,
+            Term = entry.Term,
+            Key = entry.Key,
+            Value = entry.Value,
+            IsCommitted = entry.IsCommitted
+        }));
         return Task.FromResult(response);
     }
 

@@ -8,6 +8,7 @@ service Storage {
   rpc Write (WriteRequest) returns (WriteResponse);
   rpc Read (ReadRequest) returns (ReadResponse);
   rpc List (ListRequest) returns (ListResponse);
+  rpc GetLog (GetLogRequest) returns (GetLogResponse);
 }
 
 message WriteRequest {
@@ -15,7 +16,11 @@ message WriteRequest {
   string value = 2;
 }
 
-message WriteResponse {}
+message WriteResponse {
+  int64 log_index = 1;
+  int64 commit_index = 2;
+  int64 last_applied = 3;
+}
 
 message ReadRequest {
   string key = 1;
@@ -34,4 +39,21 @@ message Entry {
 
 message ListResponse {
   repeated Entry entries = 1;
+}
+
+message GetLogRequest {}
+
+message LogEntry {
+  int64 index = 1;
+  int64 term = 2;
+  string key = 3;
+  string value = 4;
+  bool is_committed = 5;
+}
+
+message GetLogResponse {
+  int64 last_log_index = 1;
+  int64 commit_index = 2;
+  int64 last_applied = 3;
+  repeated LogEntry entries = 4;
 }

@@ -45,7 +45,7 @@ Console.WriteLine($"Timeout por chamada: {timeoutSeconds}s. Ctrl+C cancela uma c
 while (!cancellation.IsCancellationRequested)
 {
     Console.WriteLine();
-    Console.WriteLine("1 - Gravar | 2 - Consultar | 3 - Listar | 0 - Sair");
+    Console.WriteLine("1 - Gravar | 2 - Consultar | 3 - Listar dados | 4 - Ver log | 0 - Sair");
     Console.Write("> ");
     var option = Console.ReadLine();
     if (option is null or "0")
@@ -78,10 +78,11 @@ while (!cancellation.IsCancellationRequested)
                     return 0;
                 }
 
-                await client.WriteAsync(new WriteRequest { Key = key, Value = value },
+                var write = await client.WriteAsync(new WriteRequest { Key = key, Value = value },
                     deadline: DateTime.UtcNow.AddSeconds(timeoutSeconds),
                     cancellationToken: cancellation.Token);
-                Console.WriteLine("Dado persistido com sucesso.");
+                Console.WriteLine(
+                    $"Dado comitado no indice {write.LogIndex} (commit={write.CommitIndex}, aplicado={write.LastApplied}).");
                 break;
             case "2":
                 Console.Write("Chave: ");
@@ -114,6 +115,25 @@ while (!cancellation.IsCancellationRequested)
                 foreach (var entry in listing.Entries)
                 {
                     Console.WriteLine($"{entry.Key} = {entry.Value}");
+                }
+
+                break;
+            case "4":
+                var log = await client.GetLogAsync(new GetLogRequest(),
+                    deadline: DateTime.UtcNow.AddSeconds(timeoutSeconds),
+                    cancellationToken: cancellation.Token);
+                Console.WriteLine(
+                    $"Ultimo indice: {log.LastLogIndex}; commit: {log.CommitIndex}; aplicado: {log.LastApplied}");
+                if (log.Entries.Count == 0)
+                {
+                    Console.WriteLine("Log vazio.");
+                }
+
+                foreach (var entry in log.Entries)
+                {
+                    var state = entry.IsCommitted ? "comitado" : "nao comitado";
+                    Console.WriteLine(
+                        $"[{entry.Index}] termo={entry.Term} {state}: {entry.Key} = {entry.Value}");
                 }
 
                 break;
