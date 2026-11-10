@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="Grpc.AspNetCore" Version="2.76.0" />
+    <PackageReference Include="Grpc.Net.Client" Version="2.76.0" />
     <ProjectReference Include="..\Replication.Contracts\Replication.Contracts.csproj" />
   </ItemGroup>
 

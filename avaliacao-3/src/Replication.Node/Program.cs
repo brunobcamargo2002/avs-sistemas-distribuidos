@@ -1,9 +1,11 @@
 using System.Text.Json;
 using Replication.Node.Hosting;
 using Replication.Node.Storage;
+using Replication.Node.Replication;
 
 var path = Path.Combine(AppContext.BaseDirectory, "data", "state.json");
 var port = 7001;
+var nodeOptions = new FixedNodeOptions();
 var seen = new HashSet<string>(StringComparer.Ordinal);
 
 for (var index = 0; index < args.Length; index += 2)
@@ -22,6 +24,15 @@ for (var index = 0; index < args.Length; index += 2)
             && parsedPort is >= 1 and <= 65535:
             port = parsedPort;
             break;
+        case "--node-id" when !string.IsNullOrWhiteSpace(args[index + 1]):
+            nodeOptions = nodeOptions with { NodeId = args[index + 1] };
+            break;
+        case "--role" when args[index + 1] is "leader" or "follower":
+            nodeOptions = nodeOptions with { IsLeader = args[index + 1] == "leader" };
+            break;
+        case "--leader":
+            nodeOptions = nodeOptions with { LeaderAddress = args[index + 1] };
+            break;
         default:
             return Usage();
     }
@@ -29,16 +40,37 @@ for (var index = 0; index < args.Length; index += 2)
 
 try
 {
-    await using var app = NodeApplication.Create(path, port);
+    if (!nodeOptions.IsLeader && !seen.Contains("--node-id"))
+    {
+        throw new ArgumentException("Informe um --node-id exclusivo para cada seguidor.");
+    }
+
+    await using var app = NodeApplication.Create(path, port, nodeOptions);
     var store = app.Services.GetRequiredService<JsonKeyValueStore>();
-    Console.WriteLine("Servidor gRPC - etapa 2 (sem replicacao)");
+    if (!nodeOptions.IsLeader)
+    {
+        if (new Uri(nodeOptions.LeaderAddress!).Port == port)
+        {
+            throw new ArgumentException("A porta do seguidor deve ser diferente da porta do lider.");
+        }
+
+        store.EnsureLogBackedState();
+    }
+
+    Console.WriteLine("Servidor gRPC - etapa 4 (lider fixo, sem quorum ou eleicao)");
+    var status = store.GetStatus();
+    Console.WriteLine($"No: {nodeOptions.NodeId}; papel: {(nodeOptions.IsLeader ? "lider fixo" : "seguidor")}; termo: 0; commit: {status.CommitIndex}");
+    if (!nodeOptions.IsLeader)
+    {
+        Console.WriteLine($"Lider: {nodeOptions.LeaderAddress}");
+    }
     Console.WriteLine($"Arquivo: {store.FilePath}");
     Console.WriteLine($"Endereco: http://127.0.0.1:{port}");
     await app.RunAsync();
     return 0;
 }
 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
-    or JsonException or ArgumentException or NotSupportedException)
+    or JsonException or ArgumentException or NotSupportedException or InvalidOperationException)
 {
     Console.Error.WriteLine($"Nao foi possivel executar o servidor: {exception.Message}");
     return 1;
@@ -46,6 +78,7 @@ catch (Exception exception) when (exception is IOException or UnauthorizedAccess
 
 static int Usage()
 {
-    Console.Error.WriteLine("Uso: Replication.Node [--data <caminho-do-json>] [--port <1-65535>]");
+    Console.Error.WriteLine("Uso: Replication.Node [--data <json>] [--port <1-65535>] "
+        + "[--node-id <id>] [--role leader|follower] [--leader http://127.0.0.1:porta]");
     return 1;
 }

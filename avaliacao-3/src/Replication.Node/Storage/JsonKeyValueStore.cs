@@ -84,9 +84,65 @@ public sealed class JsonKeyValueStore : IDisposable
 
     public long Put(string key, string value, long term = 0)
     {
-        var index = AppendUncommitted(key, value, term);
-        CommitThrough(index);
-        return index;
+        lock (gate)
+        {
+            var index = AppendUncommitted(key, value, term);
+            CommitThrough(index);
+            return index;
+        }
+    }
+
+    public void AppendReplicated(IReadOnlyList<LogEntrySnapshot> entries)
+    {
+        lock (gate)
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            if (entries.Count == 0)
+            {
+                return;
+            }
+
+            var updatedLog = new List<StoredLogEntry>(log);
+            foreach (var entry in entries)
+            {
+                ValidateEntry(entry.Key, entry.Value, entry.Term);
+                if (entry.Index != updatedLog.Count + 1L)
+                {
+                    throw new InvalidOperationException("As entradas recebidas nao continuam o log local.");
+                }
+
+                updatedLog.Add(new StoredLogEntry
+                {
+                    Index = entry.Index,
+                    Term = entry.Term,
+                    Key = entry.Key,
+                    Value = entry.Value
+                });
+            }
+
+            Persist(updatedLog, data, commitIndex, lastApplied);
+            log = updatedLog;
+        }
+    }
+
+    public void EnsureLogBackedState()
+    {
+        lock (gate)
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            var replayed = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var entry in log.Where(entry => entry.Index <= commitIndex))
+            {
+                replayed[entry.Key] = entry.Value;
+            }
+
+            if (replayed.Count != data.Count || replayed.Any(entry =>
+                !data.TryGetValue(entry.Key, out var value) || value != entry.Value))
+            {
+                throw new InvalidOperationException(
+                    "O estado contem dados sem historico no log. Use arquivos novos para o cluster; preserve o JSON antigo.");
+            }
+        }
     }
 
     public long AppendUncommitted(string key, string value, long term = 0)

@@ -122,6 +122,11 @@ while (!cancellation.IsCancellationRequested)
                 var log = await client.GetLogAsync(new GetLogRequest(),
                     deadline: DateTime.UtcNow.AddSeconds(timeoutSeconds),
                     cancellationToken: cancellation.Token);
+                Console.WriteLine($"No: {log.NodeId}; papel: {log.Role}");
+                if (!string.IsNullOrEmpty(log.LeaderAddress))
+                {
+                    Console.WriteLine($"Lider fixo: {log.LeaderAddress}");
+                }
                 Console.WriteLine(
                     $"Ultimo indice: {log.LastLogIndex}; commit: {log.CommitIndex}; aplicado: {log.LastApplied}");
                 if (log.Entries.Count == 0)
@@ -153,6 +158,11 @@ while (!cancellation.IsCancellationRequested)
             _ => $"Falha gRPC ({exception.StatusCode}): {exception.Status.Detail}"
         };
         Console.Error.WriteLine(message);
+        var leaderAddress = exception.Trailers.GetValue("leader-address");
+        if (!string.IsNullOrEmpty(leaderAddress))
+        {
+            Console.Error.WriteLine($"Conecte o cliente ao lider usando --server {leaderAddress}");
+        }
         if (option == "1")
         {
             Console.Error.WriteLine(

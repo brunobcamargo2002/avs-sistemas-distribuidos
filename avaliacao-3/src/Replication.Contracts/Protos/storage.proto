@@ -11,6 +11,22 @@ service Storage {
   rpc GetLog (GetLogRequest) returns (GetLogResponse);
 }
 
+service ReplicationTransport {
+  rpc Fetch (FetchRequest) returns (FetchResponse);
+}
+
+message FetchRequest {
+  string follower_id = 1;
+  int64 last_log_index = 2;
+  int64 last_log_term = 3;
+}
+
+message FetchResponse {
+  string leader_id = 1;
+  int64 leader_commit = 2;
+  repeated LogEntry entries = 3;
+}
+
 message WriteRequest {
   string key = 1;
   string value = 2;
@@ -56,4 +72,7 @@ message GetLogResponse {
   int64 commit_index = 2;
   int64 last_applied = 3;
   repeated LogEntry entries = 4;
+  string node_id = 5;
+  string role = 6;
+  string leader_address = 7;
 }
