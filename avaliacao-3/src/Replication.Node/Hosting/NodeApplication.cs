@@ -19,12 +19,17 @@ public static class NodeApplication
         builder.Services.AddSingleton(_ => new JsonKeyValueStore(dataPath));
         builder.Services.AddSingleton(configuration);
         builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddSingleton<ElectionState>();
         builder.Services.AddSingleton<QuorumCoordinator>();
-        if (configuration.IsLeader)
+        if (configuration.AutomaticElection || configuration.IsLeader)
         {
             builder.Services.AddHostedService<QuorumMonitor>();
         }
-        if (!configuration.IsLeader)
+        if (configuration.AutomaticElection)
+        {
+            builder.Services.AddHostedService<AutomaticClusterWorker>();
+        }
+        else if (!configuration.IsLeader)
         {
             builder.Services.AddHostedService<PullReplicationWorker>();
         }

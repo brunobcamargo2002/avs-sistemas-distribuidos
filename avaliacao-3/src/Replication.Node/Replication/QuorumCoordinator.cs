@@ -7,28 +7,34 @@ public sealed class QuorumCoordinator(
     JsonKeyValueStore store,
     FixedNodeOptions options,
     ILogger<QuorumCoordinator> logger,
-    TimeProvider clock)
+    TimeProvider clock,
+    ElectionState election)
 {
-    private readonly object gate = new();
+    private readonly object gate = election.SyncRoot;
     private readonly Dictionary<string, ReplicaProgress> replicas = new(StringComparer.Ordinal);
     private TaskCompletionSource changed = NewSignal();
     private bool? hadQuorum;
     private bool storageFailed;
+    private long leadershipTerm = -1;
 
     public async Task<long> WriteAsync(string key, string value, CancellationToken cancellationToken)
     {
         long index;
+        long term;
         lock (gate)
         {
             cancellationToken.ThrowIfCancellationRequested();
             EnsureHealthy();
+            EnsureLeader();
+            ResetForTerm();
             if (ActiveNodes() < FixedNodeOptions.Quorum)
             {
                 logger.LogWarning("Escrita recusada: menos de tres nos ativos.");
                 throw NoQuorum();
             }
 
-            index = store.AppendUncommitted(key, value);
+            term = election.Term;
+            index = store.AppendUncommitted(key, value, term);
             logger.LogInformation("Entrada {Index} persistida localmente; aguardando quorum.", index);
         }
 
@@ -42,6 +48,11 @@ public sealed class QuorumCoordinator(
                 lock (gate)
                 {
                     EnsureHealthy();
+                    EnsureLeader();
+                    if (election.Term != term)
+                    {
+                        throw new RpcException(new Status(StatusCode.Aborted, "O termo mudou durante a escrita."));
+                    }
                     if (store.GetStatus().CommitIndex >= index)
                     {
                         return index;
@@ -70,6 +81,8 @@ public sealed class QuorumCoordinator(
         lock (gate)
         {
             EnsureHealthy();
+            EnsureLeader();
+            ResetForTerm();
             if (followerId == options.NodeId || !options.Members.Contains(followerId, StringComparer.Ordinal)
                 || index < 0 || index > store.GetStatus().LastLogIndex)
             {
@@ -93,8 +106,9 @@ public sealed class QuorumCoordinator(
     {
         lock (gate)
         {
+            ResetForTerm();
             var active = ActiveNodes();
-            return new QuorumStatus(active, active >= FixedNodeOptions.Quorum && !storageFailed,
+            return new QuorumStatus(active, election.IsLeader && active >= FixedNodeOptions.Quorum && !storageFailed,
                 options.Members.Where(member => member != options.NodeId).Select(member =>
                 {
                     var known = replicas.TryGetValue(member, out var progress);
@@ -105,6 +119,13 @@ public sealed class QuorumCoordinator(
 
     private void RefreshCore()
     {
+        ResetForTerm();
+        if (!election.IsLeader)
+        {
+            Pulse();
+            return;
+        }
+
         var active = replicas.Values.Where(IsActive).ToArray();
         var hasQuorum = active.Length + 1 >= FixedNodeOptions.Quorum;
         if (hadQuorum != hasQuorum)
@@ -118,6 +139,11 @@ public sealed class QuorumCoordinator(
         {
             var index = active.Select(replica => replica.Index)
                 .Append(store.GetStatus().LastLogIndex).OrderDescending().ElementAt(FixedNodeOptions.Quorum - 1);
+            if (options.AutomaticElection)
+            {
+                index = store.GetLog().Where(entry => entry.Index <= index && entry.Term == election.Term)
+                    .Select(entry => entry.Index).DefaultIfEmpty(0).Max();
+            }
             if (index > store.GetStatus().CommitIndex)
             {
                 try
@@ -147,6 +173,27 @@ public sealed class QuorumCoordinator(
         if (storageFailed)
         {
             throw new RpcException(new Status(StatusCode.Internal, "Falha de persistencia do commit; reinicie o no apos corrigir o armazenamento."));
+        }
+    }
+
+    private void ResetForTerm()
+    {
+        if (leadershipTerm == election.Term)
+        {
+            return;
+        }
+
+        replicas.Clear();
+        leadershipTerm = election.Term;
+        hadQuorum = null;
+        Pulse();
+    }
+
+    private void EnsureLeader()
+    {
+        if (!election.IsLeader)
+        {
+            throw new RpcException(new Status(StatusCode.FailedPrecondition, "Este no nao e mais o lider."));
         }
     }
 

@@ -6,25 +6,35 @@ using Replication.Node.Replication;
 namespace Replication.Node.Services;
 
 public sealed class StorageService(
-    JsonKeyValueStore store, FixedNodeOptions options, QuorumCoordinator quorum, ILogger<StorageService> logger)
+    JsonKeyValueStore store, FixedNodeOptions options, ElectionState election,
+    QuorumCoordinator quorum, ILogger<StorageService> logger)
     : Contracts.Storage.StorageBase
 {
     public override async Task<WriteResponse> Write(WriteRequest request, ServerCallContext context)
     {
         ValidateKey(request.Key);
         context.CancellationToken.ThrowIfCancellationRequested();
-        if (!options.IsLeader)
+        lock (election.SyncRoot)
         {
-            throw new RpcException(new Status(StatusCode.FailedPrecondition,
-                "Escritas sao aceitas somente pelo lider fixo."),
-                new Metadata { { "leader-address", options.LeaderAddress! } });
+            if (!election.IsLeader)
+            {
+                var metadata = new Metadata();
+                if (election.LeaderAddress is { } address)
+                {
+                    metadata.Add("leader-address", address);
+                }
+
+                throw new RpcException(new Status(StatusCode.FailedPrecondition,
+                    election.LeaderAddress is null ? "Lider ainda desconhecido; eleicao em andamento."
+                        : "Escritas sao aceitas somente pelo lider."), metadata);
+            }
         }
 
         try
         {
             var logIndex = await quorum.WriteAsync(request.Key, request.Value, context.CancellationToken);
             var status = store.GetStatus();
-            logger.LogInformation("No {Node}: lider fixo; termo=0; log={Index}; commit={Commit}; aplicado={Applied}.",
+            logger.LogInformation("No {Node}: escrita confirmada; log={Index}; commit={Commit}; aplicado={Applied}.",
                 options.NodeId, status.LastLogIndex, status.CommitIndex, status.LastApplied);
             return new WriteResponse
             {
@@ -65,37 +75,43 @@ public sealed class StorageService(
     public override Task<GetLogResponse> GetLog(GetLogRequest request, ServerCallContext context)
     {
         context.CancellationToken.ThrowIfCancellationRequested();
-        var snapshot = store.GetLogSnapshot();
-        var status = snapshot.Status;
-        var quorumStatus = quorum.GetStatus();
-        var response = new GetLogResponse
+        lock (election.SyncRoot)
         {
-            LastLogIndex = status.LastLogIndex,
-            CommitIndex = status.CommitIndex,
-            LastApplied = status.LastApplied,
-            NodeId = options.NodeId,
-            Role = options.IsLeader ? "lider fixo" : "seguidor",
-            LeaderAddress = options.LeaderAddress ?? "",
-            QuorumSize = FixedNodeOptions.Quorum,
-            ActiveNodes = options.IsLeader ? quorumStatus.ActiveNodes : 0,
-            HasQuorum = options.IsLeader && quorumStatus.HasQuorum
-        };
-        if (options.IsLeader)
-        {
-            response.Replicas.AddRange(quorumStatus.Replicas.Select(replica => new ReplicaProgress
+            var snapshot = store.GetLogSnapshot();
+            var status = snapshot.Status;
+            var quorumStatus = quorum.GetStatus();
+            var response = new GetLogResponse
             {
-                NodeId = replica.NodeId, Active = replica.Active, MatchIndex = replica.MatchIndex
+                LastLogIndex = status.LastLogIndex,
+                CommitIndex = status.CommitIndex,
+                LastApplied = status.LastApplied,
+                NodeId = options.NodeId,
+                Role = election.Role,
+                CurrentTerm = election.Term,
+                LeaderAddress = election.LeaderAddress ?? "",
+                QuorumSize = FixedNodeOptions.Quorum,
+                ActiveNodes = election.IsLeader ? quorumStatus.ActiveNodes : 0,
+                HasQuorum = election.IsLeader && quorumStatus.HasQuorum
+            };
+            if (election.IsLeader)
+            {
+                response.Replicas.AddRange(quorumStatus.Replicas.Select(replica => new ReplicaProgress
+                {
+                    NodeId = replica.NodeId,
+                    Active = replica.Active,
+                    MatchIndex = replica.MatchIndex
+                }));
+            }
+            response.Entries.AddRange(snapshot.Entries.Select(entry => new LogEntry
+            {
+                Index = entry.Index,
+                Term = entry.Term,
+                Key = entry.Key,
+                Value = entry.Value,
+                IsCommitted = entry.IsCommitted
             }));
+            return Task.FromResult(response);
         }
-        response.Entries.AddRange(snapshot.Entries.Select(entry => new LogEntry
-        {
-            Index = entry.Index,
-            Term = entry.Term,
-            Key = entry.Key,
-            Value = entry.Value,
-            IsCommitted = entry.IsCommitted
-        }));
-        return Task.FromResult(response);
     }
 
     private static void ValidateKey(string key)

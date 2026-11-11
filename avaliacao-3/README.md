@@ -1,15 +1,16 @@
 # Avaliacao 3 - Replicacao de dados
 
-## Etapa 5: quorum e confirmacao ao cliente
+## Etapa 6: eleicao automatica
 
 Aplicacao .NET 10 com quatro instancias do mesmo servidor gRPC e um cliente.
-Um lider fixo recebe escritas; os seguidores buscam o log via `Fetch` e mantem
+Um lider eleito recebe escritas; os seguidores buscam o log via `Fetch` e mantem
 seus proprios arquivos JSON. O log continua separado dos dados comitados.
 
 O lider exige **quorum fixo de tres nos (ele mesmo e dois seguidores)** antes
 de comitar uma escrita e responder sucesso ao cliente. Atividade e confirmacao
-de armazenamento sao acompanhadas separadamente. Nao ha ainda eleicao ou
-truncamento de logs divergentes; nao troque a lideranca por configuracao.
+de armazenamento sao acompanhadas separadamente. A eleicao usa termos e voto
+unico persistidos, maioria de tres e verificacao da atualizacao do log.
+**Nao ha ainda reconciliacao/truncamento de logs divergentes (passo 7).**
 
 ### Executar
 
@@ -23,37 +24,47 @@ dotnet build avaliacao-3\Replication.slnx
 ```
 
 Execute cada comando em um terminal separado, mantendo os quatro abertos.
-Os caminhos `cluster` abaixo evitam reutilizar estados antigos sem log:
+Em cada terminal dos servidores, defina o mesmo mapa de membros:
 
 ```powershell
-dotnet run --no-build --project avaliacao-3\src\Replication.Node -- --node-id node-1 --role leader --port 7001 --data avaliacao-3\data\cluster\node-1\state.json
+$peers = "node-1=http://127.0.0.1:7001,node-2=http://127.0.0.1:7002,node-3=http://127.0.0.1:7003,node-4=http://127.0.0.1:7004"
+```
+
+Os caminhos `cluster` abaixo evitam reutilizar estados antigos sem log.
+Execute somente o comando correspondente a cada terminal:
+
+```powershell
+dotnet run --no-build --project avaliacao-3\src\Replication.Node -- --node-id node-1 --peers $peers --port 7001 --data avaliacao-3\data\cluster\node-1\state.json
 ```
 
 ```powershell
-dotnet run --no-build --project avaliacao-3\src\Replication.Node -- --node-id node-2 --role follower --leader http://127.0.0.1:7001 --port 7002 --data avaliacao-3\data\cluster\node-2\state.json
+dotnet run --no-build --project avaliacao-3\src\Replication.Node -- --node-id node-2 --peers $peers --port 7002 --data avaliacao-3\data\cluster\node-2\state.json
 ```
 
 ```powershell
-dotnet run --no-build --project avaliacao-3\src\Replication.Node -- --node-id node-3 --role follower --leader http://127.0.0.1:7001 --port 7003 --data avaliacao-3\data\cluster\node-3\state.json
+dotnet run --no-build --project avaliacao-3\src\Replication.Node -- --node-id node-3 --peers $peers --port 7003 --data avaliacao-3\data\cluster\node-3\state.json
 ```
 
 ```powershell
-dotnet run --no-build --project avaliacao-3\src\Replication.Node -- --node-id node-4 --role follower --leader http://127.0.0.1:7001 --port 7004 --data avaliacao-3\data\cluster\node-4\state.json
+dotnet run --no-build --project avaliacao-3\src\Replication.Node -- --node-id node-4 --peers $peers --port 7004 --data avaliacao-3\data\cluster\node-4\state.json
 ```
 
 Em um quinto terminal:
 
 ```powershell
-dotnet run --no-build --project avaliacao-3\src\Replication.Client -- --server http://127.0.0.1:7001
+dotnet run --no-build --project avaliacao-3\src\Replication.Client -- --server http://127.0.0.1:7001 --peers "http://127.0.0.1:7001,http://127.0.0.1:7002,http://127.0.0.1:7003,http://127.0.0.1:7004"
 ```
 
 O endereco padrao do cliente e `http://127.0.0.1:7001`, e a porta padrao do
-servidor e `7001`. Sem configuracao, o no continua sendo lider fixo `node-1`,
-mas nao confirma escritas sozinho: sao necessarios dois seguidores ativos.
-Cada seguidor exige `--node-id` exclusivo, `--role follower` e `--leader`.
-Cada instancia deve usar porta e arquivo diferentes.
-Os membros fixos sao `node-1,node-2,node-3,node-4`. Para usar outros nomes,
-informe a mesma lista `--members id1,id2,id3,id4` em todos os processos.
+servidor e `7001`. `--peers` habilita a eleicao; todos iniciam como seguidores,
+sem prioridade para node-1. O mapa deve conter quatro identidades/endpoints
+locais distintos, incluindo o proprio no com a porta de `--port`.
+Nao misture `--peers` com `--role` ou `--leader`.
+Cada instancia deve usar porta e arquivo diferentes. Os nomes dos membros
+sao extraidos do mapa; se tambem usar `--members`, as listas devem coincidir.
+Sem `--peers`, os comandos anteriores de `--role leader|follower` e `--leader`
+continuam disponiveis para demonstrar os passos 4/5, sem eleicao. Nao misture
+esse modo com o cluster automatico nem altere a lideranca fixa manualmente.
 Identidades desconhecidas e repeticoes da mesma identidade nao aumentam o quorum.
 Esta etapa assume nos confiaveis: nao implementa autenticacao de identidades.
 O servidor aceita apenas conexoes locais IPv4, via HTTP/2
@@ -83,23 +94,67 @@ e exibido na inicializacao. Use o mesmo caminho para recuperar os dados.
 4. Abra um cliente com `--server http://127.0.0.1:7002` e consulte/lista os dados.
    A convergencia e eventual, nao necessariamente imediata apos a escrita.
 5. Escolha `4` em cada no para ver seu papel, log e commit.
-6. Encerre o node-4 com `Ctrl+C`, faca novas escritas no lider e reinicie node-4
-   com o mesmo comando. Ele recupera o JSON e busca apenas as entradas faltantes.
-7. Encerre o lider: seguidores continuam lendo os dados ja comitados, mas nao
-   elegem substituto. Reinicie o lider usando o MESMO JSON para retomar o Pull.
-8. Escrita em um seguidor retorna `FailedPrecondition` e indica o endereco do
-   lider. O cliente mostra o comando `--server`; nao ha redirecionamento automatico.
+6. Identifique um seguidor com `4`, encerre-o com `Ctrl+C`, faca novas escritas
+   e reinicie-o com o mesmo comando. Ele busca as entradas faltantes.
+7. Com os quatro ativos e sincronizados, encerre o lider com `Ctrl+C`.
+   Os tres sobreviventes elegem substituto. Verifique novo papel e termo com `4`.
+8. Grave novamente: o cliente consulta os endpoints de `--peers` e direciona
+   a escrita ao lider atual. Read/List/GetLog continuam locais ao `--server`;
+   se esse no estiver desligado, use outro `--server` para essas consultas.
+9. Reinicie o antigo lider com o MESMO JSON. Se o log for compativel, ele
+   reconhece o termo atual, permanece seguidor e recupera seu atraso.
+   Se houver cauda divergente, o erro e registrado sem apagar o log: passo 7.
+
+### Como funciona a eleicao
+
+O [ElectionState](src/Replication.Node/Replication/ElectionState.cs) controla
+os papeis `seguidor`, `candidato` e `lider`. Cada no sorteia um timeout entre
+1200 e 2000ms. Sem resposta valida do lider, incrementa e persiste o termo,
+vota em si mesmo e solicita votos via `RequestVote`. Sao necessarios **tres
+votos distintos de quatro**. Empates/falta de maioria geram novas tentativas
+com timeout aleatorio. Dois nos sozinhos nao elegem um novo lider.
+
+Um voto so e concedido uma vez por termo, e apenas para log pelo menos tao
+atualizado: compara primeiro o termo da ultima entrada e depois seu indice.
+Termo maior observado em requisicao ou resposta provoca persistencia e retorno
+a seguidor, inclusive se a resposta pertencer a uma eleicao antiga.
+Votos/respostas atrasados nao restabelecem lideranca de um termo anterior.
+Descobrir um endereco nao renova o timeout; so Fetch valido do lider ou voto
+concedido o fazem, alem de iniciar/observar um novo termo.
+
+O [AutomaticClusterWorker](src/Replication.Node/Replication/AutomaticClusterWorker.cs)
+consulta `GetLeader` nos membros conhecidos quando nao sabe quem e o lider,
+e entao faz Pull a cada 100ms. RPCs entre nos tem deadline de 350ms.
+Nao ha heartbeat enviado pelo lider: as respostas ao Fetch mantem o vinculo.
+Tempos sao configurados para demonstracao local, nao constituem SLA de failover.
+
+Ao mudar de termo, o coordenador descarta confirmacoes antigas. Novas escritas
+usam o termo atual. O commit por maioria so avanca diretamente por uma entrada
+**do termo atual**, incluindo o prefixo anterior. Nao ha entrada no-op:
+pendencias de termos anteriores podem aguardar a primeira escrita do novo lider,
+mesmo que ja estejam em tres discos. Perder lideranca durante uma escrita
+interrompe a espera sem confirmar sucesso e sem descartar a entrada.
+Um lider isolado pode continuar exibindo esse papel ate observar termo maior,
+mas sem quorum nao aceita novas escritas nem comita entradas.
+
+O [ClusterWriter](src/Replication.Client/ClusterWriter.cs) descobre o lider antes
+de cada escrita, por GetLog e indicacoes dos seguidores. Com `--peers`, consegue
+descobrir o substituto mesmo se o `--server` estiver desligado. Sem essa lista,
+depende do servidor escolhido e de sua indicacao. A descoberta e limitada,
+recusa lider desconhecido/ambiguo no termo mais recente e nao repete Write
+automaticamente. Se a lideranca mudar entre descoberta e escrita, a chamada
+pode falhar; consulte a chave antes de repetir.
 
 ### Demonstrar perda e recuperacao de quorum
 
 1. Com os quatro nos ligados, use `4` no cliente conectado ao lider para
    conferir `quorum disponivel`, e grave um dado com a opcao `1`.
-2. Desligue node-4: com lider, node-2 e node-3, novas escritas ainda funcionam.
-3. Desligue node-3 e aguarde mais de 600ms. Agora so ha dois nos ativos.
+2. Desligue um seguidor: com lider e outros dois seguidores, escritas funcionam.
+3. Desligue outro seguidor e aguarde mais de 600ms. Agora so ha dois nos ativos.
 4. Confira `quorum indisponivel`. Uma escrita nova retorna `Unavailable`
    sem adicionar uma entrada ao log. Leituras comitadas continuam funcionando.
-5. Reinicie node-3 com o mesmo JSON. Apos os Fetchs restabelecerem o quorum,
-   escritas voltam a funcionar. Node-4 pode voltar depois e recuperar seu atraso.
+5. Reinicie um seguidor com o mesmo JSON. Apos os Fetchs restabelecerem o quorum,
+   escritas voltam a funcionar. O outro pode voltar depois e recuperar seu atraso.
 
 O [QuorumCoordinator](src/Replication.Node/Replication/QuorumCoordinator.cs)
 mantem o ultimo Fetch e o ultimo indice confirmado de cada membro na memoria
@@ -127,11 +182,12 @@ ate a correcao do armazenamento e reinicio do lider.
 
 ### Fluxo Pull
 
-O [PullReplicationWorker](src/Replication.Node/Replication/PullReplicationWorker.cs)
-usa `BackgroundService`, um canal gRPC reutilizado e `PeriodicTimer` de 100ms.
-Cada Fetch tem deadline de 2s; indisponibilidade/timeout gera aviso e novas
-tentativas. A recuperacao da conexao tambem e registrada, sem repetir o mesmo
-aviso a cada tentativa. Leituras locais continuam disponiveis.
+Os workers usam `BackgroundService`, canais gRPC reutilizados e `PeriodicTimer`
+de 100ms. O worker automatico tambem executa descoberta/eleicao; o
+[PullReplicationWorker](src/Replication.Node/Replication/PullReplicationWorker.cs)
+preserva o modo antigo de lider fixo, cujo Fetch tem deadline de 2s.
+Indisponibilidade/timeout gera aviso e novas tentativas. Leituras locais
+continuam disponiveis.
 
 1. Seguidor informa identidade, ultimo indice e termo persistidos.
 2. Lider valida a posicao e retorna ate 128 entradas e seu indice de commit.
@@ -145,9 +201,17 @@ indice entre sua copia local e as replicas ativas; esse e o limite do commit.
 
 O lider nao abre conexoes nem envia dados espontaneamente aos seguidores.
 Nao ha dependencia de RabbitMQ, Docker, Redis ou Kubernetes.
-O termo continua sendo `0` ate a etapa de eleicao. Os logs exibem papel e progresso;
-Fetchs sem mudancas ficam no nivel Debug. Falhas permanentes de protocolo,
-estado ou persistencia sao registradas e interrompem o host do seguidor.
+Os logs exibem papel, termo e progresso. Falhas permanentes de protocolo,
+estado ou persistencia **locais** sao registradas e interrompem o host.
+Erros retornados por um peer remoto (por exemplo `Internal` ao persistir um
+voto) sao apenas registrados: o no continua ativo e trata o peer como
+indisponivel naquela rodada. A gravacao do JSON repete algumas vezes, por
+ate ~700ms, quando o Windows bloqueia temporariamente o arquivo (antivirus,
+indexador ou editor com o `state.json` aberto).
+Com menos de tres nos ativos nao ha maioria: o termo cresce a cada timeout
+sem lider eleito, o que e esperado. Ao reunir os nos, todos adotam o maior termo.
+Divergencia de log no modo automatico e registrada sem encerrar o host:
+ele mantem leituras do estado ja comitado, mas nao confirma essa cauda ao lider.
 
 ### Contrato e tratamento de erros
 
@@ -159,7 +223,9 @@ O [storage.proto](src/Replication.Contracts/Protos/storage.proto) define os RPCs
 | `Read` | Chave | Valor, ou status `NotFound` |
 | `List` | Requisicao vazia | Entradas ordenadas por chave |
 | `GetLog` | Requisicao vazia | Log, indices, papel e estado de quorum/progresso das replicas no lider |
-| `ReplicationTransport.Fetch` | Identidade, ultimo indice e termo do seguidor | Lote do log e commit do lider |
+| `ReplicationTransport.Fetch` | Identidade, termo atual, ultimo indice/termo do log | Termo atual, aceitacao/conflito, lote e commit do lider |
+| `ReplicationTransport.RequestVote` | Termo, candidato e ultima posicao/termo do log | Termo atual e voto concedido/negado |
+| `ReplicationTransport.GetLeader` | Requisicao vazia | Termo, identidade conhecida do lider e papel do no consultado |
 
 O cliente le e lista somente o estado aplicado. `GetLog` e apenas para
 inspecao: revela quais entradas estao no log e se ja foram comitadas.
@@ -190,12 +256,14 @@ ter persistido o dado. Consulte a chave antes de repetir.
 ```json
 {
   "formatVersion": 2,
+  "currentTerm": 1,
+  "votedFor": "node-2",
   "commitIndex": 1,
   "lastApplied": 1,
   "log": [
     {
       "index": 1,
-      "term": 0,
+      "term": 1,
       "key": "produto:1",
       "value": "Teclado"
     }
@@ -219,8 +287,13 @@ operacao gRPC `Write` persiste a entrada e aguarda confirmacoes nos Fetchs.
 O coordenador de quorum chama `CommitThrough` apos obter tres copias; a resposta
 de sucesso so e liberada depois de persistir esse commit.
 
-Entradas usam indice sequencial e termo; como eleicao ainda nao foi implementada,
-as escritas atuais usam termo `0`. `GetLog` permite inspecionar o estado do log;
+`currentTerm` e `votedFor` sao persistidos antes de solicitar/conceder votos
+ou responder em um termo maior, junto do mesmo snapshot de log e dados.
+Reiniciar nao permite votar em outro candidato no mesmo termo.
+JSONs da etapa anterior sem esses campos iniciam com termo `0` e voto nulo;
+se houver entradas com termo maior, a inicializacao automatica normaliza o termo.
+Entradas usam indice sequencial e o termo em que foram criadas. `GetLog`
+mostra tambem o termo atual do no, que pode ser maior que o da ultima entrada;
 os testes cobrem entrada nao comitada persistida, invisivel apos reinicio, e sua
 aplicacao depois de `CommitThrough`.
 
@@ -230,9 +303,13 @@ vazio apos a migracao, e novas operacoes recebem indices a partir de `1`.
 Esses dados legados nao podem ser replicados apenas pelo log. Para o cluster,
 use novos caminhos como os exemplos acima e reinsira os dados pelo cliente.
 Nao apague seu arquivo antigo. O Fetch rejeita explicitamente estado comitado
-que nao possa ser reproduzido pelo log. Nao troque o lider fixo nem reutilize
-arquivos de clusters diferentes; divergencias de indice/termo sao rejeitadas
-sem apagar logs, e a reconciliacao completa pertence a uma etapa posterior.
+que nao possa ser reproduzido pelo log. Nao reutilize arquivos de clusters
+diferentes; divergencias de indice/termo sao rejeitadas sem apagar logs.
+**Limite acordado para esta etapa:** um antigo lider com cauda divergente
+nao e automaticamente recuperado. Sem truncamento/reconciliacao, esse no pode
+ficar sem sincronizar e afetar a disponibilidade do cluster. Preserve seus
+arquivos; essa recuperacao sera implementada no passo 7. Esta etapa nao e uma
+implementacao Raft completa e pronta para producao.
 
 O armazenamento usa `System.Text.Json`, sem banco de dados ou dependencias
 externas de persistencia. A logica fica em
@@ -281,6 +358,12 @@ Os testes de quorum verificam confirmacoes distintas, espera da resposta gRPC,
 expiracao de heartbeat com relogio controlado, rejeicao sem adicionar ao log,
 timeout, cancelamento e falha de persistencia. A integracao verifica perda e
 recuperacao do quorum com quatro hosts gRPC e JSONs independentes.
+Os testes de eleicao verificam persistencia de termo/voto, voto unico,
+atualizacao do log, timeout com relogio controlado, democao por termo maior,
+limpeza das confirmacoes e regra de commit do termo atual. Quatro hosts gRPC
+reais validam eleicao, failover com tres sobreviventes, descoberta/redirecionamento
+do cliente, retorno compativel do antigo lider e recusa de cauda divergente.
+Dois hosts nao elegem lider nem aceitam escrita.
 O [NuGet.Config](NuGet.Config) limita a restauracao desta avaliacao ao nuget.org,
 incluindo os pacotes de teste, sem alterar a configuracao das outras avaliacoes.
 A regra existente em [.gitignore](../.gitignore) ignora `avaliacao-3/tests/**`;
@@ -288,6 +371,5 @@ os testes permanecem locais e essa escolha de versionamento foi preservada.
 
 ### Proxima etapa
 
-Passo 6: substituir a lideranca fixa por eleicao, com termo persistido, voto
-unico por termo e validacao de atualizacao do log do candidato.
-Depois, reconciliar logs divergentes e completar os cenarios de recuperacao.
+Passo 7: reconciliar logs divergentes e completar os cenarios de recuperacao,
+preservando sempre o prefixo comitado.

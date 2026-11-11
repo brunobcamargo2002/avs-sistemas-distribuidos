@@ -1,10 +1,12 @@
 using Grpc.Core;
 using Grpc.Net.Client;
 using Replication.Contracts;
+using Replication.Client;
 
 var address = new Uri("http://127.0.0.1:7001");
 var timeoutSeconds = 5;
 var seen = new HashSet<string>(StringComparer.Ordinal);
+var peers = new List<Uri>();
 
 for (var index = 0; index < args.Length; index += 2)
 {
@@ -24,6 +26,20 @@ for (var index = 0; index < args.Length; index += 2)
         case "--timeout-seconds" when int.TryParse(args[index + 1], out var parsedTimeout)
             && parsedTimeout is >= 1 and <= 300:
             timeoutSeconds = parsedTimeout;
+            break;
+        case "--peers":
+            foreach (var value in args[index + 1].Split(',', StringSplitOptions.TrimEntries))
+            {
+                if (!ClusterWriter.TryAddress(value, out var peer))
+                {
+                    return Usage();
+                }
+                peers.Add(peer!);
+            }
+            if (peers.Count is < 1 or > 4)
+            {
+                return Usage();
+            }
             break;
         default:
             return Usage();
@@ -78,9 +94,9 @@ while (!cancellation.IsCancellationRequested)
                     return 0;
                 }
 
-                var write = await client.WriteAsync(new WriteRequest { Key = key, Value = value },
-                    deadline: DateTime.UtcNow.AddSeconds(timeoutSeconds),
-                    cancellationToken: cancellation.Token);
+                var write = await ClusterWriter.WriteAsync(peers.Prepend(address),
+                    new WriteRequest { Key = key, Value = value },
+                    TimeSpan.FromSeconds(timeoutSeconds), cancellation.Token);
                 Console.WriteLine(
                     $"Dado comitado no indice {write.LogIndex} (commit={write.CommitIndex}, aplicado={write.LastApplied}).");
                 break;
@@ -122,8 +138,8 @@ while (!cancellation.IsCancellationRequested)
                 var log = await client.GetLogAsync(new GetLogRequest(),
                     deadline: DateTime.UtcNow.AddSeconds(timeoutSeconds),
                     cancellationToken: cancellation.Token);
-                Console.WriteLine($"No: {log.NodeId}; papel: {log.Role}");
-                if (log.Role == "lider fixo")
+                Console.WriteLine($"No: {log.NodeId}; papel: {log.Role}; termo: {log.CurrentTerm}");
+                if (log.Role is "lider" or "lider fixo")
                 {
                     Console.WriteLine($"Quorum: {(log.HasQuorum ? "disponivel" : "indisponivel")}; ativos={log.ActiveNodes}/4; minimo={log.QuorumSize}");
                     foreach (var replica in log.Replicas)
@@ -133,7 +149,7 @@ while (!cancellation.IsCancellationRequested)
                 }
                 if (!string.IsNullOrEmpty(log.LeaderAddress))
                 {
-                    Console.WriteLine($"Lider fixo: {log.LeaderAddress}");
+                    Console.WriteLine($"Lider: {log.LeaderAddress}");
                 }
                 Console.WriteLine(
                     $"Ultimo indice: {log.LastLogIndex}; commit: {log.CommitIndex}; aplicado: {log.LastApplied}");
@@ -184,6 +200,7 @@ return 0;
 static int Usage()
 {
     Console.Error.WriteLine(
-        "Uso: Replication.Client [--server <http(s)://host:porta>] [--timeout-seconds <1-300>]");
+        "Uso: Replication.Client [--server <http(s)://host:porta>] [--timeout-seconds <1-300>] "
+        + "[--peers http://127.0.0.1:7001,http://127.0.0.1:7002,...]");
     return 1;
 }

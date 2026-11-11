@@ -17,6 +17,8 @@ public sealed class JsonKeyValueStore : IDisposable
     private List<StoredLogEntry> log;
     private long commitIndex;
     private long lastApplied;
+    private long currentTerm;
+    private string? votedFor;
     private bool disposed;
 
     public string FilePath { get; }
@@ -68,6 +70,13 @@ public sealed class JsonKeyValueStore : IDisposable
                 log = persistedLog;
                 commitIndex = state.CommitIndex;
                 lastApplied = state.LastApplied;
+                if (state.CurrentTerm < 0 || state.VotedFor is not null && string.IsNullOrWhiteSpace(state.VotedFor))
+                {
+                    throw new JsonException("Termo ou voto persistido invalido.");
+                }
+
+                currentTerm = state.CurrentTerm;
+                votedFor = state.VotedFor;
             }
             else
             {
@@ -89,6 +98,32 @@ public sealed class JsonKeyValueStore : IDisposable
             var index = AppendUncommitted(key, value, term);
             CommitThrough(index);
             return index;
+        }
+    }
+
+    public (long Term, string? VotedFor) GetElectionState()
+    {
+        lock (gate)
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            return (currentTerm, votedFor);
+        }
+    }
+
+    public void SaveElectionState(long term, string? vote)
+    {
+        lock (gate)
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            if (term < currentTerm || term < 0 || vote is not null && string.IsNullOrWhiteSpace(vote)
+                || term == currentTerm && votedFor is not null && vote != votedFor)
+            {
+                throw new ArgumentException("Termo nao pode retroceder e o voto nao pode mudar no mesmo termo.");
+            }
+
+            Persist(log, data, commitIndex, lastApplied, term, vote);
+            currentTerm = term;
+            votedFor = vote;
         }
     }
 
@@ -293,25 +328,47 @@ public sealed class JsonKeyValueStore : IDisposable
         List<StoredLogEntry> updatedLog,
         Dictionary<string, string> updatedData,
         long updatedCommitIndex,
-        long updatedLastApplied)
+        long updatedLastApplied,
+        long? term = null,
+        string? vote = null)
     {
         var temporaryPath = FilePath + ".tmp";
-        using (var stream = new FileStream(
-            temporaryPath, FileMode.Create, FileAccess.Write, FileShare.None))
+        var state = new StoredState
         {
-            JsonSerializer.Serialize(stream, new StoredState
-            {
-                FormatVersion = CurrentFormatVersion,
-                CommitIndex = updatedCommitIndex,
-                LastApplied = updatedLastApplied,
-                Log = updatedLog,
-                Data = updatedData
-            }, JsonOptions);
-            stream.Flush(flushToDisk: true);
-        }
+            FormatVersion = CurrentFormatVersion,
+            CommitIndex = updatedCommitIndex,
+            LastApplied = updatedLastApplied,
+            Log = updatedLog,
+            Data = updatedData,
+            CurrentTerm = term ?? currentTerm,
+            VotedFor = term.HasValue ? vote : votedFor
+        };
 
-        File.Move(temporaryPath, FilePath, overwrite: true);
+        // No Windows, antivirus/indexador/editor podem bloquear o arquivo por alguns milissegundos.
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                using (var stream = new FileStream(
+                    temporaryPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                {
+                    JsonSerializer.Serialize(stream, state, JsonOptions);
+                    stream.Flush(flushToDisk: true);
+                }
+
+                File.Move(temporaryPath, FilePath, overwrite: true);
+                return;
+            }
+            catch (Exception exception) when (attempt < PersistAttempts
+                && exception is IOException or UnauthorizedAccessException
+                && !Directory.Exists(temporaryPath))
+            {
+                Thread.Sleep(25 * attempt);
+            }
+        }
     }
+
+    private const int PersistAttempts = 8;
 
     private const int CurrentFormatVersion = 2;
     private const int LegacyFormatVersion = 1;
@@ -328,6 +385,8 @@ public sealed class JsonKeyValueStore : IDisposable
         public int FormatVersion { get; init; } = LegacyFormatVersion;
         public long CommitIndex { get; init; }
         public long LastApplied { get; init; }
+        public long CurrentTerm { get; init; }
+        public string? VotedFor { get; init; }
         public List<StoredLogEntry>? Log { get; init; } = [];
         public Dictionary<string, string>? Data { get; init; }
     }
