@@ -13,6 +13,9 @@ public sealed class AutomaticClusterWorker(
 {
     private readonly Dictionary<string, string> peerFailures = new(StringComparer.Ordinal);
     private string? divergentLeader;
+    private string? replicationLeader;
+    private long replicationTerm = -1;
+    private long nextLogIndex = 1;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -201,15 +204,26 @@ public sealed class AutomaticClusterWorker(
         string leader, ReplicationTransport.ReplicationTransportClient client, CancellationToken token)
     {
         FetchRequest request;
+        long previousIndex;
         lock (state.SyncRoot)
         {
             var log = store.GetLogSnapshot();
+            if (replicationLeader != leader || replicationTerm != state.Term)
+            {
+                replicationLeader = leader;
+                replicationTerm = state.Term;
+                nextLogIndex = log.Status.LastLogIndex + 1;
+            }
+
+            previousIndex = Math.Min(nextLogIndex - 1, log.Status.LastLogIndex);
             request = new FetchRequest
             {
                 FollowerId = options.NodeId,
                 Term = state.Term,
                 LastLogIndex = log.Status.LastLogIndex,
-                LastLogTerm = log.Entries.LastOrDefault()?.Term ?? 0
+                LastLogTerm = log.Entries.LastOrDefault()?.Term ?? 0,
+                PreviousLogIndex = previousIndex,
+                PreviousLogTerm = previousIndex == 0 ? 0 : log.Entries[(int)previousIndex - 1].Term
             };
         }
 
@@ -228,17 +242,34 @@ public sealed class AutomaticClusterWorker(
             {
                 if (response.LogConflict && response.LeaderId == leader)
                 {
-                    // Nao altera o log; o passo 7 implementara a reconciliacao.
+                    var localCommitIndex = store.GetStatus().CommitIndex;
+                    if (previousIndex <= localCommitIndex)
+                    {
+                        logger.LogError(
+                            "O log de {Leader} diverge no indice comitado {CommitIndex}; preservando estado local e rejeitando o lider.",
+                            leader, localCommitIndex);
+                        state.SetLeaderHint(null);
+                        replicationLeader = null;
+                        return;
+                    }
+
+                    if (response.ConflictIndex < 0 || response.ConflictIndex >= previousIndex)
+                    {
+                        throw new InvalidOperationException("Indice de conflito invalido na resposta do lider.");
+                    }
+
+                    nextLogIndex = Math.Max(1, Math.Min(nextLogIndex - 1, response.ConflictIndex + 1));
                     state.AcceptLeader(response.Term, leader);
                     if (divergentLeader != leader)
                     {
-                        logger.LogError("Log divergente com {Leader}; sincronizacao recusada sem truncamento (passo 7).", leader);
+                        logger.LogWarning("Log divergente com {Leader}; negociando o prefixo comum.", leader);
                         divergentLeader = leader;
                     }
                 }
                 else
                 {
                     state.SetLeaderHint(null);
+                    replicationLeader = null;
                 }
 
                 return;
@@ -250,9 +281,23 @@ public sealed class AutomaticClusterWorker(
                 throw new InvalidOperationException("Resposta de replicacao incompativel com o estado local.");
             }
 
-            store.AppendReplicated(response.Entries.Select(entry => new JsonKeyValueStore.LogEntrySnapshot(
-                entry.Index, entry.Term, entry.Key, entry.Value, false)).ToArray());
-            store.CommitThrough(Math.Min(response.LeaderCommit, request.LastLogIndex));
+            var commitIndex = store.GetStatus().CommitIndex;
+            if (previousIndex < commitIndex)
+            {
+                logger.LogError(
+                    "O lider {Leader} nao possui o prefixo comitado local ({CommitIndex}); preservando dados e rejeitando o lider.",
+                    leader, commitIndex);
+                state.SetLeaderHint(null);
+                replicationLeader = null;
+                return;
+            }
+
+            store.ReconcileUncommittedSuffix(previousIndex, response.Entries
+                .Select(entry => new JsonKeyValueStore.LogEntrySnapshot(
+                    entry.Index, entry.Term, entry.Key, entry.Value, false)).ToArray());
+            var lastLogIndex = store.GetStatus().LastLogIndex;
+            store.CommitThrough(Math.Min(response.LeaderCommit, lastLogIndex));
+            nextLogIndex = previousIndex + response.Entries.Count + 1;
             state.AcceptLeader(response.Term, leader);
             if (divergentLeader is not null)
             {

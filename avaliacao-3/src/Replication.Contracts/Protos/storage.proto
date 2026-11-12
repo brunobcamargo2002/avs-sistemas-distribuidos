@@ -41,6 +41,8 @@ message FetchRequest {
   int64 last_log_index = 2;
   int64 last_log_term = 3;
   int64 term = 4;
+  int64 previous_log_index = 5;
+  int64 previous_log_term = 6;
 }
 
 message FetchResponse {
@@ -50,6 +52,7 @@ message FetchResponse {
   int64 term = 4;
   bool accepted = 5;
   bool log_conflict = 6;
+  int64 conflict_index = 7;
 }
 
 message WriteRequest {

@@ -160,6 +160,47 @@ public sealed class JsonKeyValueStore : IDisposable
         }
     }
 
+    public void ReconcileUncommittedSuffix(long matchedIndex, IReadOnlyList<LogEntrySnapshot> entries)
+    {
+        lock (gate)
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            if (matchedIndex < commitIndex || matchedIndex > log.Count)
+            {
+                throw new InvalidOperationException(
+                    "A reconciliacao nao pode remover entradas comitadas ou exceder o log local.");
+            }
+
+            var updatedLog = log.Take((int)matchedIndex).ToList();
+            foreach (var entry in entries)
+            {
+                ValidateEntry(entry.Key, entry.Value, entry.Term);
+                if (entry.Index != updatedLog.Count + 1L)
+                {
+                    throw new InvalidOperationException("As entradas recebidas nao continuam o prefixo comum.");
+                }
+
+                updatedLog.Add(new StoredLogEntry
+                {
+                    Index = entry.Index,
+                    Term = entry.Term,
+                    Key = entry.Key,
+                    Value = entry.Value
+                });
+            }
+
+            if (updatedLog.Count == log.Count && updatedLog.Zip(log).All(pair =>
+                pair.First.Index == pair.Second.Index && pair.First.Term == pair.Second.Term
+                && pair.First.Key == pair.Second.Key && pair.First.Value == pair.Second.Value))
+            {
+                return;
+            }
+
+            Persist(updatedLog, data, commitIndex, lastApplied);
+            log = updatedLog;
+        }
+    }
+
     public void EnsureLogBackedState()
     {
         lock (gate)

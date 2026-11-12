@@ -1,6 +1,6 @@
 # Avaliacao 3 - Replicacao de dados
 
-## Etapa 6: eleicao automatica
+## Etapas 6 e 7: eleicao automatica e reconciliacao de logs
 
 Aplicacao .NET 10 com quatro instancias do mesmo servidor gRPC e um cliente.
 Um lider eleito recebe escritas; os seguidores buscam o log via `Fetch` e mantem
@@ -10,7 +10,6 @@ O lider exige **quorum fixo de tres nos (ele mesmo e dois seguidores)** antes
 de comitar uma escrita e responder sucesso ao cliente. Atividade e confirmacao
 de armazenamento sao acompanhadas separadamente. A eleicao usa termos e voto
 unico persistidos, maioria de tres e verificacao da atualizacao do log.
-**Nao ha ainda reconciliacao/truncamento de logs divergentes (passo 7).**
 
 ### Executar
 
@@ -102,8 +101,8 @@ e exibido na inicializacao. Use o mesmo caminho para recuperar os dados.
    a escrita ao lider atual. Read/List/GetLog continuam locais ao `--server`;
    se esse no estiver desligado, use outro `--server` para essas consultas.
 9. Reinicie o antigo lider com o MESMO JSON. Se o log for compativel, ele
-   reconhece o termo atual, permanece seguidor e recupera seu atraso.
-   Se houver cauda divergente, o erro e registrado sem apagar o log: passo 7.
+   reconhece o termo atual, permanece seguidor e recupera seu atraso. Se houver
+   cauda divergente nao comitada, a replicacao recua ate o prefixo comum e a substitui.
 
 ### Como funciona a eleicao
 
@@ -304,12 +303,18 @@ Esses dados legados nao podem ser replicados apenas pelo log. Para o cluster,
 use novos caminhos como os exemplos acima e reinsira os dados pelo cliente.
 Nao apague seu arquivo antigo. O Fetch rejeita explicitamente estado comitado
 que nao possa ser reproduzido pelo log. Nao reutilize arquivos de clusters
-diferentes; divergencias de indice/termo sao rejeitadas sem apagar logs.
-**Limite acordado para esta etapa:** um antigo lider com cauda divergente
-nao e automaticamente recuperado. Sem truncamento/reconciliacao, esse no pode
-ficar sem sincronizar e afetar a disponibilidade do cluster. Preserve seus
-arquivos; essa recuperacao sera implementada no passo 7. Esta etapa nao e uma
-implementacao Raft completa e pronta para producao.
+diferentes.
+
+Na eleicao automatica, o Fetch compara o indice e o termo do prefixo informado
+pelo seguidor. Se divergirem, o lider informa um indice de conflito e o seguidor
+recua a verificacao ate encontrar um prefixo comum. A partir dele, substitui
+atomicamente somente a cauda nao comitada e recebe os lotes seguintes (ate 128
+entradas por chamada). Um log menor no novo lider tambem remove uma cauda local
+nao comitada. A reconciliacao nunca trunca entradas comitadas: se nao for possivel
+validar o prefixo ate o `commitIndex` local, o seguidor preserva seus dados,
+rejeita aquele lider e aguarda nova eleicao. O modo de lider fixo continua
+rejeitando logs divergentes. Esta etapa nao e uma implementacao Raft completa e
+pronta para producao.
 
 O armazenamento usa `System.Text.Json`, sem banco de dados ou dependencias
 externas de persistencia. A logica fica em
@@ -362,14 +367,9 @@ Os testes de eleicao verificam persistencia de termo/voto, voto unico,
 atualizacao do log, timeout com relogio controlado, democao por termo maior,
 limpeza das confirmacoes e regra de commit do termo atual. Quatro hosts gRPC
 reais validam eleicao, failover com tres sobreviventes, descoberta/redirecionamento
-do cliente, retorno compativel do antigo lider e recusa de cauda divergente.
+do cliente e recuperacao de cauda divergente sem remover o prefixo comitado.
 Dois hosts nao elegem lider nem aceitam escrita.
 O [NuGet.Config](NuGet.Config) limita a restauracao desta avaliacao ao nuget.org,
 incluindo os pacotes de teste, sem alterar a configuracao das outras avaliacoes.
 A regra existente em [.gitignore](../.gitignore) ignora `avaliacao-3/tests/**`;
 os testes permanecem locais e essa escolha de versionamento foi preservada.
-
-### Proxima etapa
-
-Passo 7: reconciliar logs divergentes e completar os cenarios de recuperacao,
-preservando sempre o prefixo comitado.

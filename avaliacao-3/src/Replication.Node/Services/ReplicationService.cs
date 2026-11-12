@@ -59,7 +59,10 @@ public sealed class ReplicationService(
         if (string.IsNullOrWhiteSpace(request.FollowerId) || request.FollowerId == options.NodeId
             || !options.Members.Contains(request.FollowerId, StringComparer.Ordinal)
             || request.Term < 0 || request.LastLogIndex < 0 || request.LastLogTerm < 0
-            || (request.LastLogIndex == 0 && request.LastLogTerm != 0))
+            || (request.LastLogIndex == 0 && request.LastLogTerm != 0)
+            || request.PreviousLogIndex < 0 || request.PreviousLogTerm < 0
+            || request.PreviousLogIndex > request.LastLogIndex
+            || (request.PreviousLogIndex == 0 && request.PreviousLogTerm != 0))
         {
             throw new RpcException(new Status(StatusCode.InvalidArgument, "Identidade ou posicao do seguidor invalida."));
         }
@@ -89,9 +92,18 @@ public sealed class ReplicationService(
 
                 store.EnsureLogBackedState();
                 var snapshot = store.GetLogSnapshot();
-                if (request.LastLogIndex > snapshot.Status.LastLogIndex
-                    || (request.LastLogIndex > 0
-                        && snapshot.Entries[(int)request.LastLogIndex - 1].Term != request.LastLogTerm))
+                var previousIndex = options.AutomaticElection
+                    ? request.PreviousLogIndex
+                    : request.LastLogIndex;
+                var previousTerm = options.AutomaticElection
+                    ? request.PreviousLogTerm
+                    : request.LastLogTerm;
+                if (options.AutomaticElection
+                    ? previousIndex > snapshot.Status.LastLogIndex
+                        || previousIndex > 0 && snapshot.Entries[(int)previousIndex - 1].Term != previousTerm
+                    : request.LastLogIndex > snapshot.Status.LastLogIndex
+                        || request.LastLogIndex > 0
+                            && snapshot.Entries[(int)request.LastLogIndex - 1].Term != request.LastLogTerm)
                 {
                     if (options.AutomaticElection)
                     {
@@ -99,7 +111,10 @@ public sealed class ReplicationService(
                         {
                             Term = election.Term,
                             LeaderId = options.NodeId,
-                            LogConflict = true
+                            LogConflict = true,
+                            ConflictIndex = previousIndex > snapshot.Status.LastLogIndex
+                                ? snapshot.Status.LastLogIndex
+                                : Math.Max(0, previousIndex - 1)
                         });
                     }
 
@@ -107,7 +122,7 @@ public sealed class ReplicationService(
                         "Log divergente. Truncamento ainda nao implementado."));
                 }
 
-                quorum.Confirm(request.FollowerId, request.LastLogIndex);
+                quorum.Confirm(request.FollowerId, previousIndex);
                 var response = new FetchResponse
                 {
                     LeaderId = options.NodeId,
@@ -115,7 +130,7 @@ public sealed class ReplicationService(
                     Accepted = true,
                     LeaderCommit = store.GetStatus().CommitIndex
                 };
-                response.Entries.AddRange(snapshot.Entries.Skip((int)request.LastLogIndex).Take(128)
+                response.Entries.AddRange(snapshot.Entries.Skip((int)previousIndex).Take(128)
                     .Select(entry => new LogEntry
                     {
                         Index = entry.Index,
